@@ -1,11 +1,15 @@
 <?php
 
 use App\Http\Controllers\AccountRequestController;
+use App\Http\Controllers\InstitutionalContactController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
 })->name('home');
+
+Route::get('/contatos', InstitutionalContactController::class)
+    ->name('institutional-contacts.show');
 
 Route::get('/account-requests/create', [AccountRequestController::class, 'create'])
     ->name('account-requests.create');
