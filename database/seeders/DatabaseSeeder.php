@@ -8,6 +8,6 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $this->call(SyntheticFixtureSeeder::class);
+        $this->call(SyntheticAccountRequestSeeder::class);
     }
 }

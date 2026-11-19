@@ -1,32 +1,132 @@
 name: Fokus Law CI
 
 on:
+  push:
+    paths:
+      - "apps/law/**"
+      - ".github/workflows/law-ci.yml"
   pull_request:
     paths:
-      - 'apps/law/**'
-      - '.github/workflows/law-ci.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'apps/law/**'
-      - '.github/workflows/law-ci.yml'
+      - "apps/law/**"
+      - ".github/workflows/law-ci.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: law-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  verify:
+  build-and-check:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/law
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ":memory:"
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.5'
-          extensions: mbstring, pdo_sqlite, intl
+          php-version: "8.5"
+          tools: composer:v2
           coverage: none
-      - run: composer validate --strict
-      - run: composer install --no-interaction --prefer-dist
-      - run: php artisan test --compact
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/law/package-lock.json
+      - uses: docker/setup-buildx-action@v3
+      - name: Validate Composer metadata
+        run: composer validate --strict
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Install JavaScript dependencies
+        run: npm ci
+      - name: Build frontend assets
+        run: npm run build
+      - name: Run automated checks
+        run: php artisan test --compact
+      - name: Run isolated synthetic Compose smoke
+        shell: bash
+        env:
+          COMPOSE_PROJECT_NAME: fokus-law-ci-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+
+          if [[ -e docker.env ]]; then
+            echo "Refusing to overwrite an existing docker.env file."
+            exit 1
+          fi
+
+          cleanup() {
+            docker compose -p "$COMPOSE_PROJECT_NAME" down --volumes --remove-orphans || true
+            rm -f docker.env
+          }
+          trap cleanup EXIT
+
+          app_key="base64:$(openssl rand -base64 32 | tr -d '\n')"
+          db_password="$(openssl rand -hex 32)"
+          root_password="$(openssl rand -hex 32)"
+          umask 077
+          cat > docker.env <<EOF
+          APP_NAME="Fokus Law CI Synthetic"
+          APP_ENV=local
+          APP_KEY=${app_key}
+          APP_DEBUG=false
+          APP_URL=http://127.0.0.1:8081
+          LOG_CHANNEL=stderr
+          DB_CONNECTION=mysql
+          DB_HOST=db
+          DB_PORT=3306
+          DB_DATABASE=fokus_law_synthetic
+          DB_USERNAME=fokus_law_local
+          DB_PASSWORD=${db_password}
+          MYSQL_DATABASE=fokus_law_synthetic
+          MYSQL_USER=fokus_law_local
+          MYSQL_PASSWORD=${db_password}
+          MYSQL_ROOT_PASSWORD=${root_password}
+          EOF
+
+          docker compose -p "$COMPOSE_PROJECT_NAME" up --build --detach --wait --wait-timeout 240
+
+          app_container="$(docker compose -p "$COMPOSE_PROJECT_NAME" ps -q app)"
+          app_port_bindings="$(docker inspect "$app_container" --format '{{json .HostConfig.PortBindings}}')"
+          app_bindings="$(jq -r '.["80/tcp"] // [] | map("\(.HostIp):\(.HostPort)") | join(",")' <<< "$app_port_bindings")"
+          if [[ "$app_bindings" != "127.0.0.1:8081" ]]; then
+            echo "Unexpected app bind: $app_bindings"
+            exit 1
+          fi
+
+          db_container="$(docker compose -p "$COMPOSE_PROJECT_NAME" ps -q db)"
+          db_bindings="$(docker inspect "$db_container" --format '{{json .HostConfig.PortBindings}}')"
+          if [[ "$db_bindings" != "null" && "$db_bindings" != "{}" ]]; then
+            echo "The synthetic database must not publish host ports."
+            exit 1
+          fi
+
+          network_internal="$(docker network inspect "${COMPOSE_PROJECT_NAME}_law-synthetic" --format '{{.Internal}}')"
+          if [[ "$network_internal" != "true" ]]; then
+            echo "The synthetic Compose network must remain internal."
+            exit 1
+          fi
+
+          docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY app php artisan migrate --force --no-interaction
+          docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY app php artisan db:seed --no-interaction
+          docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY app php artisan db:seed --no-interaction
+
+          fixture_result="$(docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY db sh -c 'mysql --batch --skip-column-names -u"$MYSQL_USER" --password="$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "SELECT COUNT(*), SUM(email_confirmed_at IS NULL), MIN(email) FROM account_requests"')"
+          if [[ "$fixture_result" != *$'1\t1\tsolicitacao.sintetica@fokuslaw.test'* ]]; then
+            echo "Unexpected synthetic seed state: $fixture_result"
+            exit 1
+          fi
+
+          docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY app curl --fail --silent --show-error http://127.0.0.1/up >/dev/null
+          home="$(docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY app curl --fail --silent --show-error http://127.0.0.1/)"
+          grep -q 'Ambiente de desenvolvimento sintético' <<< "$home"
+          grep -q 'Não insira dados pessoais, processos reais ou informações do PJe.' <<< "$home"
