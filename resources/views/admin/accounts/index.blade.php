@@ -7,6 +7,7 @@
     <nav class="top-links" aria-label="Navegação da conta">
         <a href="{{ route('home') }}">Início</a>
         <a href="{{ route('competency-admin.index') }}">Competências</a>
+        <a href="{{ route('secrecy-admin.index') }}">Concessões de sigilo</a>
         <form method="post" action="{{ route('logout') }}">
             @csrf
             <button class="secondary" type="submit">Sair</button>

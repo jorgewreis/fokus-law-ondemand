@@ -10,6 +10,7 @@ use App\Http\Controllers\CompetencyAdminController;
 use App\Http\Controllers\InstitutionalContactController;
 use App\Http\Controllers\MfaEnrollmentController;
 use App\Http\Controllers\MfaRecoveryAdminController;
+use App\Http\Controllers\SecrecyAdminController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -67,4 +68,9 @@ Route::prefix('/admin/competencies')->name('competency-admin.')->middleware(['au
     Route::post('/catalog', [CompetencyAdminController::class, 'import'])->name('import');
     Route::post('/settings', [CompetencyAdminController::class, 'settings'])->name('settings');
     Route::post('/users/{user}/grants', [CompetencyAdminController::class, 'grant'])->name('grant');
+});
+
+Route::prefix('/admin/secrecy')->name('secrecy-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
+    Route::get('/', [SecrecyAdminController::class, 'index'])->name('index');
+    Route::post('/users/{user}/grants', [SecrecyAdminController::class, 'grant'])->name('grant');
 });
