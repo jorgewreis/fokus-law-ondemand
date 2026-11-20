@@ -9,6 +9,9 @@ use App\Services\CompetencyGrants;
 use App\Services\ProcessAccessPolicy;
 use App\Services\ProcessSecrecyAccess;
 use App\Services\ProcessUnitAccess;
+use App\Services\ProcessUnitConfiguration;
+use App\Services\SecrecyGrants;
+use App\Services\UnitGrants;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -86,6 +89,28 @@ class ProcessAccessPolicyTest extends TestCase
         $this->assertFalse($policy->allows(null, 'read', $this->scope(), now()->timestamp));
         $this->assertFalse($policy->allows($user, 'create', $this->scope(), now()->timestamp));
         $this->assertFalse($policy->allows($user, 'delete', $this->scope(), now()->timestamp));
+    }
+
+    public function test_composition_uses_persisted_account_unit_competency_and_secrecy_grants(): void
+    {
+        [$admin, $user] = $this->accounts();
+        app(ProcessUnitConfiguration::class)->set($admin, '1ª Vara Crime de Ilhéus', 0);
+        $unitId = (string) DB::table('process_module_unit_settings')->value('unit_id');
+        app(UnitGrants::class)->set($admin, $user, $unitId, true);
+        app(SecrecyGrants::class)->set($admin, $user, 2, true);
+        $scope = new ProcessAccessScope($unitId, 3, '2');
+        $policy = app(ProcessAccessPolicy::class);
+
+        $this->assertTrue($policy->allows($user, 'read', $scope, now()->timestamp));
+        $this->assertFalse($policy->allows($user, 'read', new ProcessAccessScope($unitId, 16, '2'), now()->timestamp));
+        $this->assertFalse($policy->allows($user, 'read', new ProcessAccessScope($unitId, 3, '1'), now()->timestamp));
+        $this->assertFalse($policy->allows($user, 'read', new ProcessAccessScope('00000000-0000-4000-8000-000000000001', 3, '2'), now()->timestamp));
+
+        app(SecrecyGrants::class)->set($admin, $user, 2, false);
+        $this->assertFalse($policy->allows($user, 'read', $scope, now()->timestamp));
+        app(SecrecyGrants::class)->set($admin, $user, 2, true);
+        User::query()->whereKey($user->getKey())->update(['mfa_reset_required' => true]);
+        $this->assertFalse($policy->allows($user, 'read', $scope, now()->timestamp));
     }
 
     public function test_session_mfa_must_be_recent_and_bound_to_now(): void
