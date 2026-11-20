@@ -57,6 +57,7 @@ class SecrecyGrants
             ->where('users.id', $user->getKey())
             ->where('users.is_active', true)
             ->whereNotNull('users.mfa_enabled_at')
+            ->where('users.mfa_reset_required', false)
             ->where('secrecy_catalog.code', (int) $code)
             ->exists();
     }

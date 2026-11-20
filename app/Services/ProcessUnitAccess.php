@@ -4,11 +4,12 @@ namespace App\Services;
 
 use App\Models\User;
 
-/** No persisted Unit grant verifier exists yet: fail closed. */
 class ProcessUnitAccess
 {
+    public function __construct(private ?UnitAccess $access = null) {}
+
     public function allows(User $user, int|string $unitId): bool
     {
-        return false;
+        return ($this->access ?? app(UnitAccess::class))->allows($user, $unitId);
     }
 }

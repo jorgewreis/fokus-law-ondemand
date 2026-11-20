@@ -11,6 +11,7 @@ use App\Http\Controllers\InstitutionalContactController;
 use App\Http\Controllers\MfaEnrollmentController;
 use App\Http\Controllers\MfaRecoveryAdminController;
 use App\Http\Controllers\SecrecyAdminController;
+use App\Http\Controllers\UnitAdminController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -73,4 +74,10 @@ Route::prefix('/admin/competencies')->name('competency-admin.')->middleware(['au
 Route::prefix('/admin/secrecy')->name('secrecy-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
     Route::get('/', [SecrecyAdminController::class, 'index'])->name('index');
     Route::post('/users/{user}/grants', [SecrecyAdminController::class, 'grant'])->name('grant');
+});
+
+Route::prefix('/admin/units')->name('unit-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
+    Route::get('/', [UnitAdminController::class, 'index'])->name('index');
+    Route::post('/settings', [UnitAdminController::class, 'configure'])->name('configure');
+    Route::post('/users/{user}/grants', [UnitAdminController::class, 'grant'])->name('grant');
 });

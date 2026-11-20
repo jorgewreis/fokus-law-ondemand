@@ -13,7 +13,8 @@ use Throwable;
  * Any eventual protected read/write must also prevent concurrent scope or grant
  * changes from invalidating the decision before the operation is complete.
  * Rejecting same-second MFA is conservative; it does not revoke sessions globally.
- * Until Unit and secrecy verifiers are implemented this policy denies access.
+ * The persisted Unit and secrecy gates are independent; Process reads still
+ * require scope from the same persisted Process and a protected call site.
  */
 class ProcessAccessPolicy
 {
