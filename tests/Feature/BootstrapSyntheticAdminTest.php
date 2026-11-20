@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Security\SyntheticDatabaseGuard;
+use App\Services\AccountAudit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Mockery;
@@ -17,6 +18,25 @@ class BootstrapSyntheticAdminTest extends TestCase
     {
         $this->artisan('fokus:bootstrap-admin')
             ->expectsOutputToContain('exige APP_ENV=local')
+            ->assertExitCode(1);
+
+        $this->assertDatabaseCount('users', 0);
+        $this->assertDatabaseCount('system_bootstrap_states', 0);
+    }
+
+    public function test_it_refuses_a_non_synthetic_database_in_local_environment(): void
+    {
+        $this->app->instance('env', 'local');
+        config([
+            'app.key' => 'base64:'.base64_encode(str_repeat('c', 32)),
+            'admin-bootstrap.name' => 'Jorge (administrador sintético)',
+            'admin-bootstrap.email' => 'jorge@example.test',
+            'database.default' => 'sqlite',
+            'database.connections.sqlite.database' => ':memory:',
+        ]);
+
+        $this->artisan('fokus:bootstrap-admin')
+            ->expectsOutputToContain('o banco ativo não é o MySQL sintético local aprovado')
             ->assertExitCode(1);
 
         $this->assertDatabaseCount('users', 0);
@@ -61,5 +81,32 @@ class BootstrapSyntheticAdminTest extends TestCase
 
         $this->assertDatabaseCount('users', 1);
         $this->assertDatabaseCount('system_bootstrap_states', 1);
+    }
+
+    public function test_it_rolls_back_account_and_bootstrap_consumption_when_audit_write_fails(): void
+    {
+        $this->app->instance('env', 'local');
+        config([
+            'app.key' => 'base64:'.base64_encode(str_repeat('a', 32)),
+            'admin-bootstrap.name' => 'Jorge (administrador sintético)',
+            'admin-bootstrap.email' => 'jorge@example.test',
+        ]);
+
+        $guard = Mockery::mock(SyntheticDatabaseGuard::class);
+        $guard->shouldReceive('assertAllowed')->once();
+        $this->app->instance(SyntheticDatabaseGuard::class, $guard);
+
+        $audit = Mockery::mock(AccountAudit::class);
+        $audit->shouldReceive('record')->once()->andThrow(new \RuntimeException('synthetic audit failure'));
+        $this->app->instance(AccountAudit::class, $audit);
+
+        $this->artisan('fokus:bootstrap-admin')
+            ->expectsOutputToContain('Bootstrap falhou; nenhuma conta foi criada.')
+            ->doesntExpectOutputToContain('Senha aleatória, exibida somente nesta execução:')
+            ->assertExitCode(1);
+
+        $this->assertDatabaseCount('users', 0);
+        $this->assertDatabaseCount('system_bootstrap_states', 0);
+        $this->assertDatabaseCount('account_audit_events', 0);
     }
 }
