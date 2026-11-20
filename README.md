@@ -52,6 +52,21 @@ Qualquer outra combinação lança LogicException antes de consultar o banco. O 
 
 O transporte de e-mail do fluxo de confirmação aceita somente `array`, definido nos exemplos locais; a mensagem fica na memória e não é entregue nem fica disponível numa caixa postal. Drivers `log` e externos são recusados para evitar registrar links assinados. A confirmação é exercitada por testes com `Mail::fake()`; este Compose não oferece uma caixa postal para uso manual. O fluxo atual não cria usuário, autenticação, MFA, grants ou acesso aos módulos.
 
+## Bootstrap administrativo único
+
+O comando `fokus:bootstrap-admin` só aceita o SQLite `:memory:` de testes ou o MySQL isolado deste Compose, e recusa produção e qualquer outra configuração antes de solicitar segredos. Ele usa nome e e-mail definidos em configuração externa, pede o token em prompt oculto e compara seu SHA-256 com `FOKUS_ADMIN_BOOTSTRAP_TOKEN_SHA256`; o token em claro nunca é argumento, gravado no banco ou exibido. O primeiro password também é digitado em prompt oculto e confirmado. A criação da conta marcada como administradora sintética e o consumo único são atômicos. Uma segunda execução é recusada antes dos prompts. O comando não cria sessão, MFA, grants, e-mail nem permissão funcional; o marcador administrativo identifica a conta e não substitui autorização por módulo/ação.
+
+Para uso local, mantenha `FOKUS_ADMIN_BOOTSTRAP_NAME`, `FOKUS_ADMIN_BOOTSTRAP_EMAIL` e somente o digest em `docker.env` (ignorado pelo Git); não altere `docker.env.example` com valores pessoais. Gere um token aleatório fora do repositório e calcule o SHA-256 sem imprimir nenhum dos dois. Exemplo em PowerShell, mantendo valores apenas em memória:
+
+    $bootstrapToken = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+    $bootstrapDigest = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($bootstrapToken))).ToLowerInvariant()
+
+Copie apenas o digest para `docker.env`, injete o token por meio aprovado no terminal local e execute interativamente dentro de `apps/law`:
+
+    docker compose -p fokus-law-synthetic exec app php artisan fokus:bootstrap-admin
+
+Cole o token somente no prompt oculto; informe o mesmo password nas duas solicitações ocultas. Após confirmar a criação, remova também `FOKUS_ADMIN_BOOTSTRAP_TOKEN_SHA256` de `docker.env` para eliminar o verificador externo; apague as variáveis locais (`Remove-Variable bootstrapToken, bootstrapDigest`). Nunca salve token ou digest em issue, log, Notion ou Linear. O comando não deve ser usado fora do Compose sintético. Bootstrap ainda não completa login/MFA nem libera módulos; aprovação e concessões permanecem etapas separadas.
+
 ## Verificações
 
 Execute os testes na imagem/app:
