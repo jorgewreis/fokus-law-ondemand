@@ -62,8 +62,17 @@
             <nav aria-label="Acesso à aplicação">
                 <p><a href="{{ route('login.create') }}">Entrar</a></p>
                 @auth
-                    @if (auth()->user()->is_synthetic_admin)
+                    @if (auth()->user()->is_active && auth()->user()->mfa_enabled_at)
+                        @if (app(\App\Services\AccountAccess::class)->allows(auth()->user(), 'people', 'read'))
+                            <p><a href="{{ route('people.index') }}">Gestão de Pessoas</a></p>
+                        @endif
+                        @if (app(\App\Services\AccountAccess::class)->allows(auth()->user(), 'processes', 'create'))
+                            <p><a href="{{ route('processes.create') }}">Cadastrar Processo</a></p>
+                        @endif
+                    @endif
+                    @if (auth()->user()->is_synthetic_admin && auth()->user()->is_active && auth()->user()->mfa_enabled_at)
                         <p><a href="{{ route('account-admin.index') }}">Administrar contas sintéticas</a></p>
+                        <p><a href="{{ route('process-secrecy-admin.index') }}">Classificar Processos sintéticos</a></p>
                     @endif
                 @endauth
                 <p><a href="{{ route('account-requests.create') }}">Solicitar acesso para avaliação</a></p>

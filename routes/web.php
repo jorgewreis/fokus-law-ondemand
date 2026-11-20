@@ -7,9 +7,12 @@ use App\Http\Controllers\AccountRecoveryController;
 use App\Http\Controllers\AccountRequestController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CompetencyAdminController;
+use App\Http\Controllers\CourtProcessController;
 use App\Http\Controllers\InstitutionalContactController;
 use App\Http\Controllers\MfaEnrollmentController;
 use App\Http\Controllers\MfaRecoveryAdminController;
+use App\Http\Controllers\PersonController;
+use App\Http\Controllers\ProcessSecrecyAdminController;
 use App\Http\Controllers\SecrecyAdminController;
 use App\Http\Controllers\UnitAdminController;
 use Illuminate\Support\Facades\Route;
@@ -52,6 +55,26 @@ Route::post('/password/forgot', [AccountPasswordController::class, 'sendLink'])-
 Route::get('/password/reset', [AccountPasswordController::class, 'resetForm'])->name('password.reset');
 Route::post('/password/reset', [AccountPasswordController::class, 'update'])->middleware('throttle:5,1')->name('account-password.update');
 
+Route::prefix('/people')->name('people.')->middleware(['auth', 'mfa'])->group(function (): void {
+    Route::post('/address/lookup', [PersonController::class, 'lookupAddress'])->middleware('throttle:10,1')->name('address.lookup');
+    Route::post('/{personId}/address/lookup', [PersonController::class, 'lookupAddressForPerson'])->whereNumber('personId')->middleware('throttle:10,1')->name('person.address.lookup');
+    Route::get('/', [PersonController::class, 'index'])->name('index');
+    Route::post('/search', [PersonController::class, 'search'])->name('search');
+    Route::get('/create', [PersonController::class, 'create'])->name('create');
+    Route::post('/', [PersonController::class, 'store'])->name('store');
+    Route::get('/{personId}/edit', [PersonController::class, 'edit'])->whereNumber('personId')->name('edit');
+    Route::get('/{personId}', [PersonController::class, 'show'])->whereNumber('personId')->name('show');
+    Route::put('/{personId}', [PersonController::class, 'update'])->whereNumber('personId')->name('update');
+    Route::delete('/{personId}', [PersonController::class, 'destroy'])->whereNumber('personId')->name('destroy');
+});
+
+Route::prefix('/processes')->name('processes.')->middleware(['auth', 'mfa'])->group(function (): void {
+    Route::get('/create', [CourtProcessController::class, 'create'])->middleware('grant:processes,create')->name('create');
+    Route::post('/', [CourtProcessController::class, 'store'])->middleware('grant:processes,create')->name('store');
+    Route::put('/{processId}/status', [CourtProcessController::class, 'updateStatus'])->whereNumber('processId')->name('status.update');
+    Route::get('/{processId}', [CourtProcessController::class, 'show'])->whereNumber('processId')->name('show');
+});
+
 Route::prefix('/admin/accounts')->name('account-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
     Route::get('/', [AccountAdminController::class, 'index'])->name('index');
     Route::post('/requests/{accountRequest}/approve', [AccountAdminController::class, 'approve'])->name('approve');
@@ -74,6 +97,11 @@ Route::prefix('/admin/competencies')->name('competency-admin.')->middleware(['au
 Route::prefix('/admin/secrecy')->name('secrecy-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
     Route::get('/', [SecrecyAdminController::class, 'index'])->name('index');
     Route::post('/users/{user}/grants', [SecrecyAdminController::class, 'grant'])->name('grant');
+});
+
+Route::prefix('/admin/process-secrecy')->name('process-secrecy-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
+    Route::get('/', [ProcessSecrecyAdminController::class, 'index'])->name('index');
+    Route::put('/{processId}', [ProcessSecrecyAdminController::class, 'update'])->whereNumber('processId')->name('update');
 });
 
 Route::prefix('/admin/units')->name('unit-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
