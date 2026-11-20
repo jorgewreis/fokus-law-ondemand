@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Contracts\OAuthTokenRefreshMutex;
+use App\Services\CacheOAuthTokenRefreshMutex;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -12,7 +14,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(OAuthTokenRefreshMutex::class, CacheOAuthTokenRefreshMutex::class);
     }
 
     /**
