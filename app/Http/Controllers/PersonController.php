@@ -73,7 +73,56 @@ class PersonController extends Controller
             'canEdit' => $policy->canUpdate($request->user(), $person),
             'canCreateProcess' => $access->allows($request->user(), 'processes', 'create'),
             'canDelete' => $policy->canDelete($request->user(), $person),
+            'canEditOwnContacts' => $policy->canUpdateOwnContacts($request->user(), $person),
         ]);
+    }
+
+    public function editOwnContacts(Request $request, PersonAccessPolicy $policy): View
+    {
+        $person = Person::query()->where('user_id', $request->user()->getKey())->first();
+        if ($person === null) {
+            return view('people.own-contact-unlinked');
+        }
+        abort_unless($policy->canUpdateOwnContacts($request->user(), $person), 404);
+
+        return view('people.own-contact-form', ['person' => $person->load('phones')]);
+    }
+
+    public function updateOwnContacts(Request $request, PersonAccessPolicy $policy, PersonService $people): RedirectResponse
+    {
+        $person = Person::query()->where('user_id', $request->user()->getKey())->firstOrFail();
+        abort_unless($policy->canUpdateOwnContacts($request->user(), $person), 404);
+        $input = $request->all();
+        if (is_array($input['phones'] ?? null)) {
+            $input['phones'] = array_filter($input['phones'], static fn (mixed $phone): bool => is_array($phone)
+                && (filled($phone['id'] ?? null) || filled($phone['number'] ?? null) || filled($phone['category'] ?? null) || filled($phone['is_primary'] ?? null)));
+        }
+        $data = Validator::make($input, [
+            'person_type' => ['prohibited'],
+            'name' => ['prohibited'],
+            'documents' => ['prohibited'],
+            'whatsapp' => ['prohibited'],
+            'user_id' => ['prohibited'],
+            'address' => ['required', 'array'],
+            'phones' => ['nullable', 'array'],
+        ])->validate();
+
+        try {
+            $people->updateOwnContacts($request->user(), (int) $person->getKey(), $data);
+        } catch (ValidationException $exception) {
+            return back()->withErrors($exception->errors())->withInput([]);
+        }
+
+        return redirect()->route('people.own-contacts.edit')->with('status', 'Seus dados de contato foram atualizados.');
+    }
+
+    public function lookupOwnAddress(Request $request, PersonAccessPolicy $policy, PersonService $people): JsonResponse
+    {
+        $user = $request->user();
+        $person = Person::query()->where('user_id', $user->getKey())->firstOrFail();
+        abort_unless($policy->canUpdateOwnContacts($user, $person), 404);
+
+        return $this->performAddressLookup($request, $user, $people, 'update_self');
     }
 
     public function edit(Request $request, int $personId, PersonAccessPolicy $policy): View
@@ -121,12 +170,14 @@ class PersonController extends Controller
         $user = $request->user();
         abort_unless($policy->canRead($user), 404);
         $person = Person::query()->findOrFail($personId);
-        abort_unless($policy->canUpdate($user, $person), 404);
+        $canUpdate = $policy->canUpdate($user, $person);
+        $canUpdateOwnContacts = $policy->canUpdateOwnContacts($user, $person);
+        abort_unless($canUpdate || $canUpdateOwnContacts, 404);
 
-        return $this->performAddressLookup($request, $user, $people);
+        return $this->performAddressLookup($request, $user, $people, $canUpdate ? 'update' : 'update_self');
     }
 
-    private function performAddressLookup(Request $request, User $user, PersonService $people): JsonResponse
+    private function performAddressLookup(Request $request, User $user, PersonService $people, string $auditAction = 'create'): JsonResponse
     {
 
         try {
@@ -147,7 +198,7 @@ class PersonController extends Controller
         }
 
         if (! is_array($data) || ($data['erro'] ?? false) === true) {
-            $people->recordAddressLookupFailure($user);
+            $people->recordAddressLookupFailure($user, $auditAction);
 
             return response()->json(['found' => false, 'message' => 'Não foi possível localizar o CEP. Preencha o endereço manualmente.']);
         }
@@ -160,7 +211,7 @@ class PersonController extends Controller
         ];
 
         if ($address['street'] === '' || $address['city'] === '' || ! preg_match('/\A[A-Z]{2}\z/', $address['state'])) {
-            $people->recordAddressLookupFailure($user);
+            $people->recordAddressLookupFailure($user, $auditAction);
 
             return response()->json(['found' => false, 'message' => 'Não foi possível localizar o CEP. Preencha o endereço manualmente.']);
         }

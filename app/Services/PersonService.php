@@ -8,6 +8,7 @@ use App\Models\PersonPhone;
 use App\Models\PersonWhatsappIdentifier;
 use App\Models\User;
 use App\Security\SyntheticDatabaseGuard;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -99,10 +100,84 @@ class PersonService
         });
     }
 
-    public function recordAddressLookupFailure(User $actor): void
+    public function recordAddressLookupFailure(User $actor, string $action = 'create'): void
     {
         app(SyntheticDatabaseGuard::class)->assertAllowed();
-        $this->audit->record($actor, 'person.address.lookup_failed', null, null, 'failure', 'people', 'create');
+        $this->audit->record($actor, 'person.address.lookup_failed', null, null, 'failure', 'people', $action);
+    }
+
+    /** @param array{address: array<string, mixed>, phones?: array<int|string, array<string, mixed>>} $input */
+    public function updateOwnContacts(User $actor, int $personId, array $input): Person
+    {
+        app(SyntheticDatabaseGuard::class)->assertAllowed();
+        $person = Person::query()->findOrFail($personId);
+        $safeInput = [
+            'name' => $person->name,
+            'address' => $input['address'] ?? [],
+            'phones' => $input['phones'] ?? [],
+        ];
+        $validated = $this->validate($safeInput, false, $person->person_type, allowPhoneIds: true);
+        $this->validateTypeRules($validated);
+
+        return DB::transaction(function () use ($actor, $personId, $validated): Person {
+            $currentActor = User::query()->lockForUpdate()->find($actor->getKey());
+            $locked = Person::query()->lockForUpdate()->findOrFail($personId);
+            if ($currentActor === null || ! app(PersonAccessPolicy::class)->canUpdateOwnContacts($currentActor, $locked)) {
+                throw new AuthorizationException;
+            }
+
+            $locked->fill([
+                'postal_code' => $this->digits($validated['address']['postal_code']),
+                'street' => $validated['address']['street'],
+                'address_number' => $validated['address']['number'],
+                'city' => $validated['address']['city'],
+                'state' => strtoupper($validated['address']['state']),
+                'district' => $validated['address']['district'] ?? null,
+                'complement' => $validated['address']['complement'] ?? null,
+            ])->save();
+
+            $existingPhones = $locked->phones()->get()->keyBy(fn (PersonPhone $phone): int => (int) $phone->getKey());
+            $keptIds = [];
+            foreach ($validated['phones'] as $index => $phone) {
+                $number = $this->phones->normalize($phone['number'], $phone['category']);
+                $phoneId = isset($phone['id']) ? (int) $phone['id'] : null;
+                if ($phoneId !== null) {
+                    $existing = $existingPhones->get($phoneId);
+                    if (! $existing) {
+                        throw ValidationException::withMessages(["phones.{$index}.id" => 'Telefone não pertence a esta Pessoa.']);
+                    }
+                    if ($existing->whatsappIdentifiers()->exists() && $existing->number !== $number) {
+                        throw ValidationException::withMessages(["phones.{$index}.number" => 'Este telefone está associado a um identificador WhatsApp e não pode ser alterado nesta tela.']);
+                    }
+                    $existing->update([
+                        'number' => $number,
+                        'category' => $phone['category'],
+                        'is_primary' => filter_var($phone['is_primary'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    ]);
+                    $keptIds[] = $phoneId;
+                } else {
+                    $created = $locked->phones()->create([
+                        'number' => $number,
+                        'category' => $phone['category'],
+                        'is_primary' => filter_var($phone['is_primary'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    ]);
+                    $keptIds[] = (int) $created->getKey();
+                }
+            }
+
+            foreach ($existingPhones as $phoneId => $phone) {
+                if (! in_array((int) $phoneId, $keptIds, true)) {
+                    if ($phone->whatsappIdentifiers()->exists()) {
+                        throw ValidationException::withMessages(['phones' => 'Remova a associação WhatsApp pela administração antes de excluir este telefone.']);
+                    }
+                    $phone->delete();
+                }
+            }
+
+            $this->audit->record($currentActor, 'person.own_contact.updated', 'person', $locked->getKey(), 'success', 'people', 'update_self');
+
+            return $locked->load(['documents', 'phones', 'whatsappIdentifiers']);
+        });
     }
 
     public function delete(User $actor, int $personId): bool
@@ -126,7 +201,7 @@ class PersonService
         });
     }
 
-    private function validate(array $input, bool $creating, ?string $personType = null): array
+    private function validate(array $input, bool $creating, ?string $personType = null, bool $allowPhoneIds = false): array
     {
         if (isset($input['address']['state']) && is_string($input['address']['state'])) {
             $input['address']['state'] = strtoupper($input['address']['state']);
@@ -169,6 +244,9 @@ class PersonService
             $rules['person_type'] = ['required', 'string', 'in:PF,PJ'];
         } else {
             $rules['person_type'] = ['prohibited'];
+        }
+        if ($allowPhoneIds) {
+            $rules['phones.*.id'] = ['nullable', 'integer', 'min:1', 'distinct'];
         }
 
         $validated = Validator::make($input, $rules)->validate();

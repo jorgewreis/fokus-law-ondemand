@@ -11,6 +11,7 @@ use App\Http\Controllers\CourtProcessController;
 use App\Http\Controllers\InstitutionalContactController;
 use App\Http\Controllers\MfaEnrollmentController;
 use App\Http\Controllers\MfaRecoveryAdminController;
+use App\Http\Controllers\PersonAccountLinkAdminController;
 use App\Http\Controllers\PersonController;
 use App\Http\Controllers\ProcessSecrecyAdminController;
 use App\Http\Controllers\SecrecyAdminController;
@@ -57,6 +58,9 @@ Route::post('/password/reset', [AccountPasswordController::class, 'update'])->mi
 
 Route::prefix('/people')->name('people.')->middleware(['auth', 'mfa'])->group(function (): void {
     Route::post('/address/lookup', [PersonController::class, 'lookupAddress'])->middleware('throttle:10,1')->name('address.lookup');
+    Route::get('/me/contacts/edit', [PersonController::class, 'editOwnContacts'])->name('own-contacts.edit');
+    Route::put('/me/contacts', [PersonController::class, 'updateOwnContacts'])->name('own-contacts.update');
+    Route::post('/me/contacts/address/lookup', [PersonController::class, 'lookupOwnAddress'])->middleware('throttle:10,1')->name('own-contacts.address.lookup');
     Route::post('/{personId}/address/lookup', [PersonController::class, 'lookupAddressForPerson'])->whereNumber('personId')->middleware('throttle:10,1')->name('person.address.lookup');
     Route::get('/', [PersonController::class, 'index'])->name('index');
     Route::post('/search', [PersonController::class, 'search'])->name('search');
@@ -102,6 +106,11 @@ Route::prefix('/admin/secrecy')->name('secrecy-admin.')->middleware(['auth', 'mf
 Route::prefix('/admin/process-secrecy')->name('process-secrecy-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
     Route::get('/', [ProcessSecrecyAdminController::class, 'index'])->name('index');
     Route::put('/{processId}', [ProcessSecrecyAdminController::class, 'update'])->whereNumber('processId')->name('update');
+});
+
+Route::prefix('/admin/person-account-links')->name('person-account-links.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
+    Route::get('/', [PersonAccountLinkAdminController::class, 'index'])->name('index');
+    Route::post('/', [PersonAccountLinkAdminController::class, 'store'])->name('store');
 });
 
 Route::prefix('/admin/units')->name('unit-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {

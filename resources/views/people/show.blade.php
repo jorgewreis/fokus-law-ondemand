@@ -10,6 +10,9 @@
     @if ($canEdit)
         <p><a class="button" href="{{ route('people.edit', $person) }}">Editar Pessoa</a></p>
     @endif
+    @if ($canEditOwnContacts)
+        <p><a class="button secondary" href="{{ route('people.own-contacts.edit') }}">Editar meus telefones e endereço</a></p>
+    @endif
     @if ($canCreateProcess)
         <p><a class="button secondary" href="{{ route('processes.create', ['person_id' => $person->getKey()]) }}">Cadastrar Processo e vincular esta Pessoa</a></p>
     @endif

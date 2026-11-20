@@ -29,6 +29,19 @@ class PersonAccessPolicy
             || $this->access->allows($user, 'people', 'update');
     }
 
+    public function canUpdateOwnContacts(?User $user, Person $person): bool
+    {
+        if ($user === null || (int) $person->user_id !== (int) $user->getKey()) {
+            return false;
+        }
+        $currentUser = User::query()->find($user->getKey());
+
+        return $currentUser !== null
+            && $currentUser->is_active
+            && $currentUser->mfa_enabled_at !== null
+            && ! $currentUser->mfa_reset_required;
+    }
+
     public function canDelete(?User $user, Person $person): bool
     {
         return $user !== null

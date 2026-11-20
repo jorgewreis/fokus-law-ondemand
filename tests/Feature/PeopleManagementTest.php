@@ -281,6 +281,170 @@ class PeopleManagementTest extends TestCase
         $this->assertDatabaseMissing('account_audit_events', ['event' => 'person.deleted']);
     }
 
+    public function test_jorge_links_account_and_person_explicitly_with_both_internal_ids_audited(): void
+    {
+        $admin = User::factory()->create([
+            'is_active' => true, 'is_synthetic_admin' => true,
+            'mfa_enabled_at' => now()->subMinute(), 'mfa_reset_required' => false,
+        ]);
+        $account = User::factory()->create(['is_active' => true, 'email' => 'same@example.test']);
+        $person = $this->newPerson($admin);
+
+        $this->assertNull($person->user_id);
+        $this->actingAs($admin)->withSession(['auth.mfa_verified_at' => now()->subSeconds(2)->timestamp])
+            ->get(route('person-account-links.index'))
+            ->assertOk()
+            ->assertSee($person->name)
+            ->assertSee($account->email);
+
+        $this->actingAs($admin)->withSession(['auth.mfa_verified_at' => now()->subSeconds(2)->timestamp])
+            ->post(route('person-account-links.store'), ['person_id' => $person->getKey(), 'user_id' => $account->getKey()])
+            ->assertRedirect()
+            ->assertSessionHas('status');
+
+        $this->assertDatabaseHas('people', ['id' => $person->getKey(), 'user_id' => $account->getKey()]);
+        $this->assertDatabaseHas('person_account_link_events', [
+            'actor_user_id' => $admin->getKey(),
+            'person_id' => $person->getKey(),
+            'user_id' => $account->getKey(),
+            'operation' => 'linked',
+            'outcome' => 'success',
+        ]);
+
+        $this->actingAs($admin)->withSession(['auth.mfa_verified_at' => now()->subSeconds(2)->timestamp])
+            ->post(route('person-account-links.store'), ['person_id' => $person->getKey(), 'user_id' => $account->getKey()])
+            ->assertSessionHasErrors('link');
+        $this->assertDatabaseCount('person_account_link_events', 1);
+    }
+
+    public function test_non_admin_cannot_create_account_person_link(): void
+    {
+        $ordinary = User::factory()->create([
+            'is_active' => true, 'is_synthetic_admin' => false,
+            'mfa_enabled_at' => now()->subMinute(), 'mfa_reset_required' => false,
+        ]);
+        $account = User::factory()->create(['is_active' => true]);
+        $person = $this->newPerson($ordinary);
+
+        $this->actingAs($ordinary)->withSession(['auth.mfa_verified_at' => now()->subSeconds(2)->timestamp])
+            ->post(route('person-account-links.store'), ['person_id' => $person->getKey(), 'user_id' => $account->getKey()])
+            ->assertForbidden();
+
+        $this->assertNull($person->fresh()->user_id);
+        $this->assertDatabaseCount('person_account_link_events', 0);
+    }
+
+    public function test_linked_active_account_can_update_only_its_own_contacts_without_module_read_grant(): void
+    {
+        $owner = User::factory()->create([
+            'is_active' => true, 'mfa_enabled_at' => now()->subMinute(), 'mfa_reset_required' => false,
+        ]);
+        $person = $this->newPerson($owner);
+        $person->user_id = $owner->getKey();
+        $person->save();
+        $phone = PersonPhone::query()->create([
+            'person_id' => $person->getKey(), 'number' => '61991234567', 'category' => 'Celular', 'is_primary' => true,
+        ]);
+
+        $this->actingAs($owner)->withSession(['auth.mfa_verified_at' => now()->subSeconds(2)->timestamp])
+            ->get(route('people.own-contacts.edit'))
+            ->assertOk()
+            ->assertSee('Meus telefones e endereço');
+
+        $this->actingAs($owner)->withSession(['auth.mfa_verified_at' => now()->subSeconds(2)->timestamp])
+            ->put(route('people.own-contacts.update'), [
+                'address' => [
+                    'postal_code' => '45653241', 'street' => 'Rua atualizada', 'number' => '5',
+                    'city' => 'Ilhéus', 'state' => 'BA',
+                ],
+                'phones' => [[
+                    'id' => $phone->getKey(), 'number' => '(61) 9 1234-5678',
+                    'category' => 'Celular', 'is_primary' => '1',
+                ]],
+            ])
+            ->assertRedirect(route('people.own-contacts.edit'))
+            ->assertSessionHas('status');
+
+        $this->assertDatabaseHas('people', ['id' => $person->getKey(), 'street' => 'Rua atualizada', 'name' => 'Pessoa sintética']);
+        $this->assertSame('61912345678', $phone->fresh()->number);
+        $this->assertDatabaseHas('account_audit_events', [
+            'actor_user_id' => $owner->getKey(),
+            'event' => 'person.own_contact.updated',
+            'subject_type' => 'person',
+            'subject_id' => (string) $person->getKey(),
+            'action' => 'update_self',
+            'outcome' => 'success',
+        ]);
+        $event = AccountAuditEvent::query()->where('event', 'person.own_contact.updated')->firstOrFail();
+        $this->assertStringNotContainsString('61912345678', json_encode($event->getAttributes(), JSON_THROW_ON_ERROR));
+    }
+
+    public function test_self_contact_update_cannot_change_other_person_or_sensitive_fields(): void
+    {
+        $owner = User::factory()->create([
+            'is_active' => true, 'mfa_enabled_at' => now()->subMinute(), 'mfa_reset_required' => false,
+        ]);
+        $other = User::factory()->create();
+        $person = $this->newPerson($other);
+        $person->user_id = $other->getKey();
+        $person->save();
+
+        $this->actingAs($owner)->withSession(['auth.mfa_verified_at' => now()->subSeconds(2)->timestamp])
+            ->get(route('people.own-contacts.edit'))
+            ->assertOk()
+            ->assertSee('ainda não tem um cadastro de Pessoa vinculado');
+
+        $linkedPerson = $this->newPerson($owner);
+        $linkedPerson->user_id = $owner->getKey();
+        $linkedPerson->save();
+        $this->actingAs($owner)->withSession(['auth.mfa_verified_at' => now()->subSeconds(2)->timestamp])
+            ->put(route('people.own-contacts.update'), [
+                'name' => 'Nome alterado sem permissão',
+                'address' => [
+                    'postal_code' => '45653241', 'street' => 'Rua atualizada', 'number' => '5',
+                    'city' => 'Ilhéus', 'state' => 'BA',
+                ],
+            ])
+            ->assertSessionHasErrors('name');
+
+        $this->assertSame('Pessoa sintética', $linkedPerson->fresh()->name);
+        $this->assertSame('Rua de teste', $linkedPerson->fresh()->street);
+    }
+
+    public function test_self_contact_edit_cannot_change_a_phone_referenced_by_whatsapp(): void
+    {
+        $owner = User::factory()->create([
+            'is_active' => true, 'mfa_enabled_at' => now()->subMinute(), 'mfa_reset_required' => false,
+        ]);
+        $person = $this->newPerson($owner);
+        $person->user_id = $owner->getKey();
+        $person->save();
+        $phone = PersonPhone::query()->create([
+            'person_id' => $person->getKey(), 'number' => '61991234567', 'category' => 'Celular', 'is_primary' => true,
+        ]);
+        PersonWhatsappIdentifier::query()->create([
+            'person_id' => $person->getKey(), 'phone_id' => $phone->getKey(),
+            'type' => 'phone', 'value' => '61991234567', 'is_primary' => true,
+        ]);
+
+        $this->actingAs($owner)->withSession(['auth.mfa_verified_at' => now()->subSeconds(2)->timestamp])
+            ->put(route('people.own-contacts.update'), [
+                'address' => [
+                    'postal_code' => '45653241', 'street' => 'Rua atualizada', 'number' => '5',
+                    'city' => 'Ilhéus', 'state' => 'BA',
+                ],
+                'phones' => [[
+                    'id' => $phone->getKey(), 'number' => '62991234567',
+                    'category' => 'Celular', 'is_primary' => '1',
+                ]],
+            ])
+            ->assertSessionHasErrors('phones.0.number');
+
+        $this->assertSame('61991234567', $phone->fresh()->number);
+        $this->assertSame('Rua de teste', $person->fresh()->street);
+        $this->assertDatabaseMissing('account_audit_events', ['event' => 'person.own_contact.updated']);
+    }
+
     private function grantPersonDelete(User $admin): void
     {
         foreach (['read', 'delete'] as $action) {
