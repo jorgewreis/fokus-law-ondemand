@@ -21,6 +21,7 @@ concurrency:
 jobs:
   build-and-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: apps/law
@@ -130,3 +131,15 @@ jobs:
           home="$(docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY app curl --fail --silent --show-error http://127.0.0.1/)"
           grep -q 'Ambiente de desenvolvimento sintético' <<< "$home"
           grep -q 'Não insira dados pessoais, processos reais ou informações do PJe.' <<< "$home"
+
+          confirmation_status="$(docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY app curl --silent --show-error --connect-timeout 5 --max-time 10 --output /dev/null --write-out '%{http_code}' 'http://127.0.0.1/account-requests/1/confirm?expires=0&signature=ci-log-probe')"
+          if [[ "$confirmation_status" != "403" ]]; then
+            echo "Expected invalid signed confirmation to return 403, got $confirmation_status."
+            exit 1
+          fi
+          # The PHP Apache image links access.log to stdout, so read the bounded container log stream.
+          container_logs="$(docker compose -p "$COMPOSE_PROJECT_NAME" logs --no-color --since 2m app)"
+          if grep -q 'signature=ci-log-probe' <<< "$container_logs"; then
+            echo "Apache access log exposed a signed confirmation query string."
+            exit 1
+          fi

@@ -33,6 +33,22 @@ class AccountRequestFlowTest extends TestCase
             && str_contains($mail->confirmationUrl, 'signature='));
     }
 
+    public function test_confirmation_url_uses_the_configured_origin_instead_of_the_request_host(): void
+    {
+        Mail::fake();
+        $canonicalOrigin = rtrim((string) config('app.url'), '/');
+
+        $this->withServerVariables(['HTTP_HOST' => 'attacker.invalid'])
+            ->post(route('account-requests.store'), [
+                'display_name' => 'Pessoa Sintética',
+                'email' => 'synthetic.user@example.test',
+            ])
+            ->assertRedirect($canonicalOrigin.'/account-requests/create');
+
+        Mail::assertSent(ConfirmAccountRequestEmail::class, fn (ConfirmAccountRequestEmail $mail): bool => str_starts_with($mail->confirmationUrl, $canonicalOrigin.'/')
+            && ! str_contains($mail->confirmationUrl, 'attacker.invalid'));
+    }
+
     public function test_signed_get_does_not_confirm_until_the_person_submits_the_form(): void
     {
         $accountRequest = AccountRequest::factory()->create();
