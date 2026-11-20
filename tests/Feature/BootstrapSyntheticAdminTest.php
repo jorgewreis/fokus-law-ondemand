@@ -3,109 +3,63 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Security\SyntheticDatabaseGuard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Mockery;
 use Tests\TestCase;
 
 class BootstrapSyntheticAdminTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const TOKEN = 'one-time-secret-token-for-tests';
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        config([
-            'admin-bootstrap.name' => 'Jorge Wreis',
-            'admin-bootstrap.email' => 'jorge@example.test',
-            'admin-bootstrap.token_sha256' => hash('sha256', self::TOKEN),
-        ]);
-    }
-
-    public function test_it_creates_only_the_configured_admin_and_consumes_the_bootstrap_once(): void
+    public function test_it_refuses_bootstrap_outside_local_before_database_mutation(): void
     {
         $this->artisan('fokus:bootstrap-admin')
-            ->expectsOutputToContain('No grants or session will be created.')
-            ->expectsQuestion('Bootstrap token', self::TOKEN)
-            ->expectsQuestion('Choose an initial password (at least 16 characters)', 'test-password-that-is-long')
-            ->expectsQuestion('Confirm the initial password', 'test-password-that-is-long')
-            ->expectsOutputToContain('bootstrap token is now consumed')
-            ->doesntExpectOutputToContain(self::TOKEN)
-            ->doesntExpectOutputToContain('test-password-that-is-long')
+            ->expectsOutputToContain('exige APP_ENV=local')
+            ->assertExitCode(1);
+
+        $this->assertDatabaseCount('users', 0);
+        $this->assertDatabaseCount('system_bootstrap_states', 0);
+    }
+
+    public function test_it_creates_only_the_configured_admin_once_and_displays_a_random_password_once(): void
+    {
+        $this->app->instance('env', 'local');
+        config([
+            'app.key' => 'base64:'.base64_encode(str_repeat('b', 32)),
+            'admin-bootstrap.name' => 'Jorge (administrador sintético)',
+            'admin-bootstrap.email' => 'jorge@example.test',
+        ]);
+        $guard = Mockery::mock(SyntheticDatabaseGuard::class);
+        $guard->shouldReceive('assertAllowed')->twice();
+        $this->app->instance(SyntheticDatabaseGuard::class, $guard);
+
+        $this->artisan('fokus:bootstrap-admin')
+            ->expectsOutputToContain('Senha aleatória, exibida somente nesta execução: ')
+            ->expectsOutputToContain('Nenhum grant ou sessão foi criado.')
             ->assertExitCode(0);
 
-        $this->assertDatabaseCount('users', 1);
-        $this->assertDatabaseHas('users', [
-            'name' => 'Jorge Wreis',
-            'email' => 'jorge@example.test',
-            'is_synthetic_admin' => true,
-        ]);
+        $user = User::query()->sole();
+        $this->assertSame('jorge@example.test', $user->email);
+        $this->assertTrue($user->is_synthetic_admin);
+        $this->assertFalse($user->is_active);
+        $this->assertTrue($user->mfa_reset_required);
+        $this->assertNotSame('jorge@example.test', $user->password);
+        $this->assertTrue(Hash::needsRehash($user->password) === false);
+        $this->assertDatabaseCount('account_grants', 0);
         $this->assertDatabaseHas('system_bootstrap_states', [
             'key' => 'synthetic_administrator',
-            'user_id' => User::query()->value('id'),
+            'user_id' => $user->getKey(),
         ]);
-        $this->assertDatabaseMissing('system_bootstrap_states', ['key' => self::TOKEN]);
-        $this->assertDatabaseMissing('users', ['email' => self::TOKEN]);
+        $this->assertDatabaseHas('account_audit_events', ['event' => 'administrator.bootstrap']);
 
         $this->artisan('fokus:bootstrap-admin')
-            ->expectsOutputToContain('one-time bootstrap was already used')
+            ->expectsOutputToContain('uso único já foi consumido')
+            ->doesntExpectOutputToContain('Senha aleatória, exibida somente nesta execução:')
             ->assertExitCode(1);
 
         $this->assertDatabaseCount('users', 1);
-    }
-
-    public function test_it_rejects_an_invalid_token_without_creating_an_account(): void
-    {
-        $this->artisan('fokus:bootstrap-admin')
-            ->expectsOutputToContain('No grants or session will be created.')
-            ->expectsQuestion('Bootstrap token', 'incorrect-token')
-            ->expectsOutputToContain('token was invalid')
-            ->assertExitCode(1);
-
-        $this->assertDatabaseCount('users', 0);
-        $this->assertDatabaseCount('system_bootstrap_states', 0);
-    }
-
-    public function test_it_rejects_an_unsafe_database_before_prompting_for_secrets(): void
-    {
-        $this->app->instance('env', 'production');
-
-        $this->artisan('fokus:bootstrap-admin')
-            ->expectsOutputToContain('active database is not an approved synthetic destination')
-            ->assertExitCode(1);
-    }
-
-    public function test_it_requires_password_confirmation_and_keeps_token_out_of_output(): void
-    {
-        $this->artisan('fokus:bootstrap-admin')
-            ->expectsQuestion('Bootstrap token', self::TOKEN)
-            ->expectsQuestion('Choose an initial password (at least 16 characters)', 'test-password-that-is-long')
-            ->expectsQuestion('Confirm the initial password', 'different-password-that-is-long')
-            ->expectsOutputToContain('password was too short or confirmation did not match')
-            ->doesntExpectOutput(self::TOKEN)
-            ->doesntExpectOutput('test-password-that-is-long')
-            ->assertExitCode(1);
-
-        $this->assertDatabaseCount('users', 0);
-        $this->assertDatabaseCount('system_bootstrap_states', 0);
-    }
-
-    public function test_it_rolls_back_the_account_if_consuming_the_token_fails(): void
-    {
-        DB::statement("CREATE TRIGGER fail_bootstrap_state BEFORE INSERT ON system_bootstrap_states BEGIN SELECT RAISE(ABORT, 'forced failure'); END");
-
-        $this->artisan('fokus:bootstrap-admin')
-            ->expectsQuestion('Bootstrap token', self::TOKEN)
-            ->expectsQuestion('Choose an initial password (at least 16 characters)', 'test-password-that-is-long')
-            ->expectsQuestion('Confirm the initial password', 'test-password-that-is-long')
-            ->expectsOutputToContain('Bootstrap failed; no account was created.')
-            ->doesntExpectOutputToContain(self::TOKEN)
-            ->doesntExpectOutputToContain('test-password-that-is-long')
-            ->assertExitCode(1);
-
-        $this->assertDatabaseCount('users', 0);
-        $this->assertDatabaseCount('system_bootstrap_states', 0);
+        $this->assertDatabaseCount('system_bootstrap_states', 1);
     }
 }

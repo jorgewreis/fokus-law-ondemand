@@ -59,7 +59,15 @@
                 </div>
             </section>
 
-            <p><a href="{{ route('account-requests.create') }}">Solicitar acesso para avaliação</a></p>
+            <nav aria-label="Acesso à aplicação">
+                <p><a href="{{ route('login.create') }}">Entrar</a></p>
+                @auth
+                    @if (auth()->user()->is_synthetic_admin)
+                        <p><a href="{{ route('account-admin.index') }}">Administrar contas sintéticas</a></p>
+                    @endif
+                @endauth
+                <p><a href="{{ route('account-requests.create') }}">Solicitar acesso para avaliação</a></p>
+            </nav>
 
             <footer>Dados de demonstração, quando habilitados, são identificados como sintéticos e só são semeados nos ambientes local e de teste.</footer>
         </main>

@@ -50,22 +50,23 @@ O seeder SyntheticAccountRequestSeeder só aceita um destes destinos:
 
 Qualquer outra combinação lança LogicException antes de consultar o banco. O seeder usa firstOrCreate para manter uma única solicitação fictícia em pending_email_confirmation, com endereço .test, sem usuário, senha, sessão ou concessão. O seed não representa uma pessoa real nem dados mascarados. Não altere os guards para fazer fixtures alcançar outros bancos.
 
-O transporte de e-mail do fluxo de confirmação aceita somente `array`, definido nos exemplos locais; a mensagem fica na memória e não é entregue nem fica disponível numa caixa postal. Drivers `log` e externos são recusados para evitar registrar links assinados. A confirmação é exercitada por testes com `Mail::fake()`; este Compose não oferece uma caixa postal para uso manual. O fluxo atual não cria usuário, autenticação, MFA, grants ou acesso aos módulos.
+O transporte `array` do fluxo público de confirmação é somente para simulação: mensagens ficam em memória e não são entregues. Convites de ativação, redefinição de senha e recuperação de MFA exigem SMTP configurado e validado antes da ação; nenhum segredo de SMTP deve ser registrado em Git, Linear ou Notion. Links assinados não devem ser enviados pelo driver `log`.
 
-## Bootstrap administrativo único
+## Contas, MFA e concessões
 
-O comando `fokus:bootstrap-admin` só aceita o SQLite `:memory:` de testes ou o MySQL isolado deste Compose, e recusa produção e qualquer outra configuração antes de solicitar segredos. Ele usa nome e e-mail definidos em configuração externa, pede o token em prompt oculto e compara seu SHA-256 com `FOKUS_ADMIN_BOOTSTRAP_TOKEN_SHA256`; o token em claro nunca é argumento, gravado no banco ou exibido. O primeiro password também é digitado em prompt oculto e confirmado. A criação da conta marcada como administradora sintética e o consumo único são atômicos. Uma segunda execução é recusada antes dos prompts. O comando não cria sessão, MFA, grants, e-mail nem permissão funcional; o marcador administrativo identifica a conta e não substitui autorização por módulo/ação.
-
-Para uso local, mantenha `FOKUS_ADMIN_BOOTSTRAP_NAME`, `FOKUS_ADMIN_BOOTSTRAP_EMAIL` e somente o digest em `docker.env` (ignorado pelo Git); não altere `docker.env.example` com valores pessoais. Gere um token aleatório fora do repositório e calcule o SHA-256 sem imprimir nenhum dos dois. Exemplo em PowerShell, mantendo valores apenas em memória:
-
-    $bootstrapToken = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-    $bootstrapDigest = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($bootstrapToken))).ToLowerInvariant()
-
-Copie apenas o digest para `docker.env`, injete o token por meio aprovado no terminal local e execute interativamente dentro de `apps/law`:
+O bootstrap inicial do administrador é um comando de uso único. Ele só aceita `APP_ENV=local`, `APP_KEY` configurada, conexão MySQL no host Compose `db:3306`, banco `fokus_law_synthetic`, usuário `fokus_law_local` e `DB_URL` vazia. Nome e e-mail de Jorge devem estar configurados em `docker.env`, que é ignorado pelo Git. Execute interativamente no container local somente depois de conferir o alvo sintético:
 
     docker compose -p fokus-law-synthetic exec app php artisan fokus:bootstrap-admin
 
-Cole o token somente no prompt oculto; informe o mesmo password nas duas solicitações ocultas. Após confirmar a criação, remova também `FOKUS_ADMIN_BOOTSTRAP_TOKEN_SHA256` de `docker.env` para eliminar o verificador externo; apague as variáveis locais (`Remove-Variable bootstrapToken, bootstrapDigest`). Nunca salve token ou digest em issue, log, Notion ou Linear. O comando não deve ser usado fora do Compose sintético. Bootstrap ainda não completa login/MFA nem libera módulos; aprovação e concessões permanecem etapas separadas.
+O comando cria Jorge inativo, sem concessões, e exibe uma senha aleatória apenas nessa execução; guarde-a em local seguro. O registro de bootstrap impede replay mesmo se a conta for alterada depois. No primeiro login, a conta precisa cadastrar TOTP e guardar os códigos de recuperação antes de obter uma sessão autenticada. Não execute o bootstrap em produção nem copie a senha para logs/tickets.
+
+Se Jorge perder TOTP e todos os códigos de recuperação, o comando de contingência também exige o mesmo alvo local dedicado, SMTP configurado, senha atual da conta administrativa e confirmação explícita da verificação de identidade por contato previamente conhecido:
+
+    docker compose -p fokus-law-synthetic exec app php artisan law:recover-admin-mfa
+
+O comando revoga o segredo TOTP e os códigos anteriores, invalida sessões e exige novo cadastro TOTP. Ele envia notificação separada para o e-mail da conta e registra o evento sem incluir senha, código ou segredo. Se o SMTP falhar após a revogação, a conta permanece sem fator antigo e só pode recuperar acesso depois de novo TOTP; verifique a falha registrada antes de prosseguir.
+
+A aprovação de uma solicitação cria uma conta inativa e emite convite de uso único com validade de 24 horas; não concede módulos nem ações. A redefinição de senha expira em 30 minutos e não redefine TOTP. Jorge configura cada concessão permitida no painel de administração; a aplicação nega por padrão e verifica módulo + ação no middleware `grant:<módulo>,<ação>`. A sessão exige MFA e expira para fins de autorização após 12 horas.
 
 ## Verificações
 
@@ -73,6 +74,7 @@ Execute os testes na imagem/app:
 
     docker compose -p fokus-law-synthetic exec -T app php artisan test --compact
     docker compose -p fokus-law-synthetic exec -T app php artisan test --compact tests/Feature/SyntheticAccountRequestSeederSafetyTest.php
+    docker compose -p fokus-law-synthetic exec -T app php artisan test --compact tests/Feature/AccountLifecycleAccessTest.php
 
 A primeira suíte usa o ambiente testing do PHPUnit e SQLite :memory:. O teste de segurança verifica que banco remoto, APP_ENV=production e DB_URL configurada são recusados. Em 19/11/2026, esta branch passou com 13 testes e 67 assertions. O resultado não comprova MySQL/Compose runtime, entrega HTTP pelo host ou isolamento remoto.
 

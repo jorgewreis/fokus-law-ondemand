@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\AccountRequestStatus;
 use App\Mail\ConfirmAccountRequestEmail;
 use App\Models\AccountRequest;
+use App\Services\AccountAudit;
 use App\Services\AccountRequestLifecycle;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
@@ -31,8 +33,9 @@ class AccountRequestController extends Controller
 
         $email = Str::lower(trim($validated['email']));
 
-        if (config('mail.default') !== 'array') {
-            abort(503, 'Este fluxo sintético só aceita o transporte array; e-mail real e links em logs estão desativados.');
+        $mailer = (string) config('mail.default');
+        if (! in_array($mailer, ['array', 'smtp'], true)) {
+            abort(503, 'Este fluxo só permite transporte array ou SMTP configurado; envio por logs está desativado.');
         }
 
         $accountRequestLifecycle->expirePending($email);
@@ -66,13 +69,13 @@ class AccountRequestController extends Controller
                 ['accountRequest' => $accountRequest->getKey()],
             );
 
-            Mail::mailer('array')->to($email)->send(new ConfirmAccountRequestEmail($confirmationUrl));
+            Mail::mailer($mailer)->to($email)->send(new ConfirmAccountRequestEmail($confirmationUrl));
         }
 
         return redirect()->route('account-requests.create')->with('status', 'Solicitação registrada. Neste ambiente sintético, mensagens não são entregues; a confirmação é validada por testes simulados.');
     }
 
-    public function showConfirmation(Request $request, AccountRequest $accountRequest, AccountRequestLifecycle $accountRequestLifecycle): View
+    public function showConfirmation(Request $request, AccountRequest $accountRequest, AccountRequestLifecycle $accountRequestLifecycle): Response
     {
         $this->assertValidConfirmationSignature($request, $accountRequest);
         $accountRequestLifecycle->expirePending($accountRequest->email);
@@ -80,10 +83,10 @@ class AccountRequestController extends Controller
 
         abort_unless($accountRequest->status === AccountRequestStatus::PendingEmailConfirmation, 410);
 
-        return view('account-requests.confirm', [
+        return response()->view('account-requests.confirm', [
             'accountRequest' => $accountRequest,
             'confirmationUrl' => $request->fullUrl(),
-        ]);
+        ])->header('Cache-Control', 'no-store')->header('Referrer-Policy', 'no-referrer');
     }
 
     public function confirm(Request $request, AccountRequest $accountRequest, AccountRequestLifecycle $accountRequestLifecycle): RedirectResponse
@@ -94,19 +97,21 @@ class AccountRequestController extends Controller
 
         abort_unless($accountRequest->status === AccountRequestStatus::PendingEmailConfirmation, 410);
 
-        $now = now();
+        DB::transaction(function () use ($accountRequest): void {
+            $locked = AccountRequest::query()->lockForUpdate()->findOrFail($accountRequest->getKey());
+            abort_unless(
+                $locked->status === AccountRequestStatus::PendingEmailConfirmation
+                    && $locked->expires_at->isFuture(),
+                410,
+            );
 
-        $updated = AccountRequest::query()
-            ->whereKey($accountRequest->getKey())
-            ->where('status', AccountRequestStatus::PendingEmailConfirmation->value)
-            ->where('expires_at', '>', $now)
-            ->update([
-                'status' => AccountRequestStatus::PendingDeveloperApproval->value,
-                'email_confirmed_at' => $now,
-                'updated_at' => $now,
-            ]);
+            $locked->forceFill([
+                'status' => AccountRequestStatus::PendingDeveloperApproval,
+                'email_confirmed_at' => now(),
+            ])->save();
 
-        abort_unless($updated === 1, 410);
+            app(AccountAudit::class)->record(null, 'account_request.email_confirmed', 'account_request', $locked->getKey());
+        });
 
         return redirect()->route('account-requests.create')->with('status', 'E-mail confirmado. Sua solicitação aguarda análise; nenhum acesso foi liberado.');
     }

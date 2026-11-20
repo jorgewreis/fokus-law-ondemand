@@ -7,8 +7,9 @@ use Database\Factories\AccountRequestFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['display_name', 'email', 'status', 'email_confirmed_at', 'submitted_at', 'expires_at'])]
+#[Fillable(['display_name', 'email', 'status', 'email_confirmed_at', 'submitted_at', 'expires_at', 'reviewed_by_user_id', 'linked_user_id', 'reviewed_at'])]
 class AccountRequest extends Model
 {
     /** @use HasFactory<AccountRequestFactory> */
@@ -27,5 +28,10 @@ class AccountRequest extends Model
             'submitted_at' => 'datetime',
             'expires_at' => 'datetime',
         ];
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'linked_user_id');
     }
 }
