@@ -117,6 +117,40 @@ jobs:
             exit 1
           fi
 
+          # A second, independent MySQL instance proves the competency-map
+          # transaction/locking behavior without touching the fixture database.
+          probe_project="${COMPOSE_PROJECT_NAME}-rei232"
+          probe_hostname="rei232-$(openssl rand -hex 6)"
+          export REI232_DISPOSABLE_MYSQL_HOSTNAME="$probe_hostname"
+          probe_compose=(docker compose -p "$probe_project" -f compose.mysql-probe.yaml)
+          cleanup_probe() {
+            "${probe_compose[@]}" down --volumes --remove-orphans || true
+          }
+          trap 'cleanup_probe; cleanup' EXIT
+          "${probe_compose[@]}" up --detach --wait --wait-timeout 120 db
+          probe_container="$("${probe_compose[@]}" ps -q db)"
+          probe_bindings="$(docker inspect "$probe_container" --format '{{json .HostConfig.PortBindings}}')"
+          if [[ "$probe_bindings" != "null" && "$probe_bindings" != "{}" ]]; then
+            echo "The disposable probe database must not publish host ports."
+            exit 1
+          fi
+          probe_mounts="$(docker inspect "$probe_container" --format '{{json .Mounts}}')"
+          if ! jq -e 'length == 1 and .[0].Type == "tmpfs" and .[0].Destination == "/var/lib/mysql"' <<< "$probe_mounts" >/dev/null; then
+            echo "The disposable probe database must use only tmpfs storage."
+            exit 1
+          fi
+          probe_internal="$(docker network inspect "${probe_project}_isolated" --format '{{.Internal}}')"
+          if [[ "$probe_internal" != "true" ]]; then
+            echo "The disposable probe network must be internal."
+            exit 1
+          fi
+          probe_image="$(docker inspect "$app_container" --format '{{.Config.Image}}')"
+          docker run --rm --network "${probe_project}_isolated" --env-file docker.env \
+            -e "REI232_DISPOSABLE_MYSQL_HOSTNAME=$probe_hostname" \
+            "$probe_image" php tests/mysql/rei232_disposable_probe.php
+          "${probe_compose[@]}" down --volumes --remove-orphans
+          trap cleanup EXIT
+
           docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY app php artisan migrate --force --no-interaction
           docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY app php artisan db:seed --no-interaction
           docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY app php artisan db:seed --no-interaction
