@@ -6,6 +6,7 @@ use App\Http\Controllers\AccountPasswordController;
 use App\Http\Controllers\AccountRecoveryController;
 use App\Http\Controllers\AccountRequestController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CompetencyAdminController;
 use App\Http\Controllers\InstitutionalContactController;
 use App\Http\Controllers\MfaEnrollmentController;
 use App\Http\Controllers\MfaRecoveryAdminController;
@@ -60,3 +61,10 @@ Route::prefix('/admin/accounts')->name('account-admin.')->middleware(['auth', 'm
 Route::post('/admin/accounts/mfa-recovery/{recoveryRequest}/approve', [MfaRecoveryAdminController::class, 'approve'])
     ->middleware(['auth', 'mfa', 'synthetic.admin'])
     ->name('mfa-recovery.approve');
+
+Route::prefix('/admin/competencies')->name('competency-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
+    Route::get('/', [CompetencyAdminController::class, 'index'])->name('index');
+    Route::post('/catalog', [CompetencyAdminController::class, 'import'])->name('import');
+    Route::post('/settings', [CompetencyAdminController::class, 'settings'])->name('settings');
+    Route::post('/users/{user}/grants', [CompetencyAdminController::class, 'grant'])->name('grant');
+});
