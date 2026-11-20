@@ -27,7 +27,8 @@ class CompetencyGrants
             }
             if ($grant) {
                 $description = app(CompetencyCatalog::class)->descriptionFor($code);
-                if ($code === 999 || $description === null || ! DB::table('competencies')->where('code', $code)->where('description', $description)->exists()) {
+                $storedDescription = DB::table('competencies')->where('code', $code)->value('description');
+                if ($code === 999 || $description === null || $storedDescription !== $description) {
                     throw ValidationException::withMessages(['competency' => 'Competência indisponível para concessão.']);
                 }
             }
@@ -56,14 +57,15 @@ class CompetencyGrants
             return false;
         }
 
-        return DB::table('account_competency_grants')
+        $storedDescription = DB::table('account_competency_grants')
             ->join('users', 'users.id', '=', 'account_competency_grants.user_id')
             ->join('competencies', 'competencies.code', '=', 'account_competency_grants.competency_code')
             ->where('users.id', $user->getKey())
             ->where('users.is_active', true)
             ->whereNotNull('users.mfa_enabled_at')
             ->where('competencies.code', $code)
-            ->where('competencies.description', $description)
-            ->exists();
+            ->value('competencies.description');
+
+        return $storedDescription === $description;
     }
 }

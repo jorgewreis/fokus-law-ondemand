@@ -118,6 +118,25 @@ class CompetencyGrantsTest extends TestCase
         $this->assertSame(['granted', 'revoked'], DB::table('competency_grant_events')->orderBy('id')->pluck('event')->all());
     }
 
+    public function test_description_comparison_is_strict_for_grant_and_check(): void
+    {
+        app(CompetencyCatalog::class)->importSnapshot();
+        $actor = $this->account(true);
+        $user = $this->account();
+        $service = app(CompetencyGrants::class);
+        // Code 2 is Cível in the snapshot. A case/accent-insensitive MySQL collation
+        // could otherwise consider the altered value equal in a WHERE clause.
+        DB::table('competencies')->where('code', 2)->update(['description' => 'civel']);
+        try {
+            $service->set($actor, $user, 2, true);
+            $this->fail('Altered description must be rejected.');
+        } catch (ValidationException) {
+            $this->assertSame(0, DB::table('account_competency_grants')->count());
+        }
+        DB::table('account_competency_grants')->insert(['user_id' => $user->id, 'competency_code' => 2, 'granted_by_user_id' => $actor->id, 'created_at' => now(), 'updated_at' => now()]);
+        $this->assertFalse($service->hasExactGrant($user, 2));
+    }
+
     public function test_unavailable_code_cannot_be_granted(): void
     {
         app(CompetencyCatalog::class)->importSnapshot();
