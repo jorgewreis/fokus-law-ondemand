@@ -55,6 +55,28 @@ class ProcessModuleSettings
             if ($before === $after) {
                 return;
             }
+            $retired = array_values(array_diff($before['competencies'] ?? [], $codes));
+            if ($retired !== []) {
+                $mappings = DB::table('process_class_competencies')
+                    ->whereIn('competency_code', $retired)
+                    ->where('active', true)
+                    ->orderBy('competency_code')
+                    ->orderBy('class_code')
+                    ->get(['class_code', 'competency_code']);
+                foreach ($mappings as $mapping) {
+                    DB::table('process_class_competencies')
+                        ->where('class_code', $mapping->class_code)
+                        ->where('competency_code', $mapping->competency_code)
+                        ->update(['active' => false, 'updated_at' => now()]);
+                    DB::table('process_class_competency_events')->insert([
+                        'actor_user_id' => $currentActor->getKey(),
+                        'class_code' => $mapping->class_code,
+                        'competency_code' => $mapping->competency_code,
+                        'event' => 'deactivated',
+                        'created_at' => now(),
+                    ]);
+                }
+            }
             if ($before === null) {
                 DB::table('process_module_settings')->insert(['id' => 1, 'justice_branch' => $branch, 'court_level' => $level, 'created_at' => now(), 'updated_at' => now()]);
             } else {
