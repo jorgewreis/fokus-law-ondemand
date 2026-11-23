@@ -50,6 +50,12 @@ The synthetic environment may share the KVM1 with existing production only after
 
 For the synthetic MVP, backups are application-specific, encrypted before transfer, and sent to the separate local workstation over a protected outbound-initiated path. The approved monthly process, retention, key separation, capacity checks, and restore acceptance remain governed by PRD section 8.3. This backup decision does not apply to real or production data.
 
+## Portfolio repository boundary — clarification 2026-11-23
+
+Jorge clarified that the corporate repository `jorgewreis/fokus` is intended to contain the commercial Fokus Cloud, Admin, Law, Lead, Styles, and Jarvis code, documentation, and pages. The custom Fokus Law on demand application for the 1ª Vara Crime de Ilhéus remains outside that central repository, with separate code, data, identity, access, and operation. This is a repository/product boundary clarification; it does not replace the stack and environment decisions above.
+
+The current branch still contains `apps/law/` for the 1ª Vara application. The private repository `jorgewreis/website-tjba-ios1vcrime-2026` is a related candidate whose README describes a PHP/MySQL system, not the Laravel application here; it has not been confirmed as the canonical revision served to users or as a suitable destination. Preserve history, deployment provenance, dependencies, and rollback; do not move/remove code until destination and consumers are confirmed. This clarification alone is not evidence of migration or authorization to change infrastructure. The current portfolio record is [Notion — FOKUS | Plano Diretor e Governança 2027](https://app.notion.com/p/41b6af4c51098104bb34f5c85fbed40e), with reconciliation tracked in [REI-272](https://linear.app/reis-developer/issue/REI-272/gov-reconciliar-plano-diretor-2027-com-o-prd-vigente-do-fokus).
+
 ## Consequences
 
 - The first release can be built and tested as one Laravel application with a relational schema and server-rendered UI.
