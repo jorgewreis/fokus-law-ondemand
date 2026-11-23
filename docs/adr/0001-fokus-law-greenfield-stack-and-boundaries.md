@@ -5,13 +5,13 @@
 - Decision date: 2026-11-18
 - Recorded in this repository: 2026-11-19
 - Scope: Synthetic MVP for Fokus Cloud Law — 1ª Vara Crime de Ilhéus
-- Source decisions: internal Linear references REI-195 and REI-206, the approved PRD (sections 1, 4, 5, 7, 8, 9 and 10.1), and current product scope.
+- Source decisions: internal project records, the approved PRD (sections 1, 4, 5, 7, 8, 9 and 10.1), and current product scope.
 
 ## Context
 
 The product is a Greenfield application for the synthetic MVP. The approved scope has one developer, a server-rendered application, and no automatic migration of code or data from legacy systems. The authorized KVM1 is shared with existing production services, so synthetic co-hosting requires logical separation and evidence before activation. Institutional data, production use, PJe integration, and institutional homologation are outside this decision.
 
-The current product scope in the PRD and REI-206 defines the synthetic MVP as Pessoa → Processo; Gestão de Expedições is for a subsequent phase and is outside MVP acceptance. Older workflow references that include Expedição are historical and superseded for MVP scope. This clarification aligns product-scope references only; it does not change the approved architecture decision or authorize deployment. Identity, authorization, audit, storage, and backup boundaries remain explicit. Actual host configuration, logical application separation, and end-to-end recovery are separate verification gates.
+The current product scope in the PRD defines the synthetic MVP as Pessoa → Processo; Gestão de Expedições is for a subsequent phase and is outside MVP acceptance. Older workflow references that include Expedição are historical and superseded for MVP scope. This clarification aligns product-scope references only; it does not change the approved architecture decision or authorize deployment. Identity, authorization, audit, storage, and backup boundaries remain explicit. Actual host configuration, logical application separation, and end-to-end recovery are separate verification gates.
 
 As observed on 2026-11-19, the VPS reports PHP 8.5.12, Percona Server for MySQL 8.4.11, and CloudPanel 6.0.8. Effective application configuration and InnoDB availability were not fully verified. At the edge, law.fokuscloud.com.br is redirected by a Cloudflare rule before reaching the origin; the current origin certificate does not include the law hostname and no Law vhost was observed. A Docker-published TCP 3333 listener for the existing Fokus Lead service was externally reachable despite UFW's default-deny policy; its purpose remains unconfirmed. The user chose to keep that mapping unchanged for now. These are dated observations, not mitigations or authorization to change shared routing.
 
@@ -32,7 +32,7 @@ As observed on 2026-11-19, the VPS reports PHP 8.5.12, Percona Server for MySQL 
 - Pros: separates frontend deployment from API implementation and permits independent clients.
 - Cons: adds an API contract, deployment surface, and authentication boundary without a required MVP client or workflow that benefits from the split.
 
-The approved REI-195 decision explicitly records the selected stack and the Django and SPA/API alternatives. The pros and cons above are architecture analysis recorded in this ADR; they should not be read as additional product approval.
+The approved architecture decision explicitly records the selected stack and the Django and SPA/API alternatives. The pros and cons above are architecture analysis recorded in this ADR; they should not be read as additional product approval.
 
 ## Decision
 
@@ -42,7 +42,7 @@ For synthetic development, use individual accounts with MFA and server-side auth
 
 ### Initial synthetic administrator
 
-Create the first configured synthetic administrator through the one-time CLI bootstrap in internal Linear reference REI-235, as recorded in the latest approved PRD decision of 2026-11-20. The command is restricted to `APP_ENV=local` and the dedicated synthetic MySQL database, creates only the configured administrator, and generates a cryptographically random password that is displayed once. It stores only the normal password hash; no bootstrap token or reusable secret is required. The database transaction consumes the bootstrap once and records an audit event. Do not seed a default account or password. The bootstrap creates no session, MFA enrollment, functional grant, or access to a module; the first login must enroll TOTP before activation. Subsequent accounts still require separate approval, MFA, and explicit module/action grants. The administrator marker does not itself authorize access. This decision applies only to the local synthetic environment and does not authorize real accounts, production access, or deployment.
+Create the first configured synthetic administrator through the one-time CLI bootstrap, as recorded in the latest approved PRD decision of 2026-11-20. The command is restricted to `APP_ENV=local` and the dedicated synthetic MySQL database, creates only the configured administrator, and generates a cryptographically random password that is displayed once. It stores only the normal password hash; no bootstrap token or reusable secret is required. The database transaction consumes the bootstrap once and records an audit event. Do not seed a default account or password. The bootstrap creates no session, MFA enrollment, functional grant, or access to a module; the first login must enroll TOTP before activation. Subsequent accounts still require separate approval, MFA, and explicit module/action grants. The administrator marker does not itself authorize access. This decision applies only to the local synthetic environment and does not authorize real accounts, production access, or deployment.
 
 If the sole synthetic administrator loses both TOTP and all recovery codes, use only the local CLI recovery command against the same dedicated synthetic MySQL target. It requires the current account password and explicit confirmation that identity was checked through a previously known contact channel, revokes the old factor, recovery codes, and sessions, records the recovery event, notifies the account, and requires new TOTP enrollment. It grants no module or action. This recovery is not exposed as a self-service web bypass and does not define institutional recovery policy.
 
@@ -54,7 +54,7 @@ For the synthetic MVP, backups are application-specific, encrypted before transf
 
 Jorge clarified that the corporate repository `jorgewreis/fokus` is intended to contain the commercial Fokus Cloud, Admin, Law, Lead, Styles, and Jarvis code, documentation, and pages. The custom Fokus Law on demand application for the 1ª Vara Crime de Ilhéus remains outside that central repository, with separate code, data, identity, access, and operation. This is a repository/product boundary clarification; it does not replace the stack and environment decisions above.
 
-The current branch still contains `apps/law/` for the 1ª Vara application. A private repository describing a PHP/MySQL system is a related candidate, not the Laravel application here; it has not been confirmed as the canonical revision served to users or as a suitable destination. Preserve history, deployment provenance, dependencies, and rollback; do not move/remove code until destination and consumers are confirmed. This clarification alone is not evidence of migration or authorization to change infrastructure. The current portfolio record and its reconciliation are maintained in private Notion/Linear workspaces (internal references: FOKUS portfolio plan and REI-272).
+The current branch still contains `apps/law/` for the 1ª Vara application. A private repository describing a PHP/MySQL system is a related candidate, not the Laravel application here; it has not been confirmed as the canonical revision served to users or as a suitable destination. Preserve history, deployment provenance, dependencies, and rollback; do not move/remove code until destination and consumers are confirmed. This clarification alone is not evidence of migration or authorization to change infrastructure. The current portfolio record and its reconciliation are maintained in private project workspaces.
 
 ## Consequences
 
@@ -66,13 +66,13 @@ The current branch still contains `apps/law/` for the 1ª Vara application. A pr
 
 ## Verification record
 
-- Options and approved selection: Django and SPA/API are named as considered alternatives in REI-195; detailed pros/cons and consequences here are architecture analysis, not separate user approvals.
+- Options and approved selection: Django and SPA/API are named as considered alternatives in the architecture decision record; detailed pros/cons and consequences here are architecture analysis, not separate user approvals.
 - Account governance and scopes: cross-checked against the current PRD on 2026-11-19; only test-account approval and module/action grants are attributed to Jorge, while unit/competence/secrecy checks remain server-side enforcement.
 - Current hosting observations: PHP 8.5.12, Percona 8.4.11, CloudPanel 6.0.8; MySQL engine and Law vhost configuration remain unverified. Cloudflare redirect/certificate observations and externally reachable Docker TCP 3333 were recorded as current state, not proof of mitigation.
 - Synthetic fixtures are wholly fictitious and not derived from masked copies.
-- Current scope cross-check (2026-11-19): PRD sections 4 and 5 and REI-206 place Gestão de Expedições in a later phase; MVP acceptance follows Pessoa → Processo with the approved Pessoa–Processo links and controls. Earlier Expedição references remain historical only. This is a scope clarification, not a new architecture or implementation decision.
+- Current scope cross-check (2026-11-19): PRD sections 4 and 5 place Gestão de Expedições in a later phase; MVP acceptance follows Pessoa → Processo with the approved Pessoa–Processo links and controls. Earlier Expedição references remain historical only. This is a scope clarification, not a new architecture or implementation decision.
 
-- Decision authority and selected stack: recorded in REI-195 and approved PRD, retrieved on 2026-11-19.
+- Decision authority and selected stack: recorded in the approved PRD, retrieved on 2026-11-19.
 - Synthetic/production boundary and activation gates: cross-checked against PRD section 10.1 on 2026-11-19; all infrastructure gates remain open.
 - No PJe integration, import, institutional data, or homologation is added by this ADR.
 - Initial administrator bootstrap and sole-admin recovery: reconciled to the latest approved PRD decisions on 2026-11-20; local single use, one-time random password display, current-password and known-contact checks for recovery, factor/session revocation, and no implicit functional grants. No credentials or secret values are recorded here.
