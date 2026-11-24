@@ -1,0 +1,23 @@
+services:
+  db:
+    image: mysql:8.4.13
+    command: ["--skip-log-bin"]
+    hostname: ${REI232_DISPOSABLE_MYSQL_HOSTNAME:?set a per-run disposable hostname}
+    env_file:
+      - ./docker.env
+    tmpfs:
+      - /var/lib/mysql
+    networks:
+      isolated:
+        aliases:
+          - db
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+
+networks:
+  isolated:
+    internal: true

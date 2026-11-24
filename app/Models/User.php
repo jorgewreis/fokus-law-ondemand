@@ -42,6 +42,16 @@ class User extends Authenticatable
         return $this->hasMany(AccountGrant::class);
     }
 
+    public function secrecyGrants(): HasMany
+    {
+        return $this->hasMany(SecrecyGrant::class, 'user_id');
+    }
+
+    public function unitGrants(): HasMany
+    {
+        return $this->hasMany(UnitGrant::class, 'user_id');
+    }
+
     public function recoveryCodes(): HasMany
     {
         return $this->hasMany(MfaRecoveryCode::class);
