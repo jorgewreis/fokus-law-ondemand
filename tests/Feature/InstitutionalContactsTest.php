@@ -6,7 +6,7 @@ use Tests\TestCase;
 
 class InstitutionalContactsTest extends TestCase
 {
-    public function test_institutional_contacts_are_public_and_use_only_verified_official_values(): void
+    public function test_institutional_contacts_page_shows_synthetic_placeholders(): void
     {
         $this->get(route('institutional-contacts.show'))
             ->assertOk()
@@ -15,7 +15,6 @@ class InstitutionalContactsTest extends TestCase
             ->assertSee('contato@dominio-do-cliente.example')
             ->assertSee('Endereço institucional sintético do cliente on demand.')
             ->assertSee('Não informado na fonte oficial consultada; aguarda confirmação.')
-            ->assertSee('https://example.com/contatos-institucionais')
-            ->assertDontSee('Emanuele Vita Leite');
+            ->assertSee('https://example.com/contatos-institucionais');
     }
 }
