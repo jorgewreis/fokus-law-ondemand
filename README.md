@@ -1,6 +1,6 @@
 # Fokus Law — ambiente sintético local
 
-Aplicação Greenfield da 1ª Vara Crime de Ilhéus. O MVP em construção cobre Pessoas e Processos. Este ambiente usa somente fixtures fictícias; não é homologação e não autoriza PJe, dados reais, produção ou ativação no KVM1.
+Aplicação Greenfield do Fokus Law on demand. O MVP em construção cobre Pessoas e Processos. Este ambiente usa somente fixtures fictícias; não é homologação e não autoriza PJe, dados reais, produção ou ativação no KVM1.
 
 ## Fontes canônicas
 
@@ -8,9 +8,9 @@ Aplicação Greenfield da 1ª Vara Crime de Ilhéus. O MVP em construção cobre
 - [ADR-0001 — arquitetura Greenfield e fronteiras de ambiente](../../docs/adr/0001-fokus-law-greenfield-stack-and-boundaries.md)
 - [Dicionário conceitual de Pessoas e Processos](../../docs/domain/dicionario-dominio.md)
 - [Ciclo de vida das fixtures sintéticas](../../docs/testing/ciclo-fixtures-sinteticas.md)
-- [REI-194 — percurso mínimo do MVP](https://linear.app/reis-developer/issue/REI-194/vara-implementar-o-percurso-minimo-do-mvp-institucional)
-- [REI-198 — aplicação e ambiente sintético](https://linear.app/reis-developer/issue/REI-198/vara-inicializar-aplicacao-greenfield-e-ambiente-sintetico-isolado)
-- [REI-197 — contas, MFA e recuperação](https://linear.app/reis-developer/issue/REI-197/vara-implementar-contas-individuais-mfa-e-recuperacao)
+- [REI-194 — percurso mínimo do MVP](https://linear.app/reis-developer/issue/REI-194)
+- [REI-198 — aplicação e ambiente sintético](https://linear.app/reis-developer/issue/REI-198)
+- [REI-197 — contas, MFA e recuperação](https://linear.app/reis-developer/issue/REI-197)
 - [Guia local e gates de promoção](README_DEPLOYMENT.md)
 
 ## Pré-requisitos
