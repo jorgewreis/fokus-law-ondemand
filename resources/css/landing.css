@@ -719,15 +719,237 @@ tr.on td:first-child { box-shadow: inset 3px 0 0 #7dba8f; }
     html { scroll-behavior: auto; }
 }
 
+/* ------------------------------------------------------------------
+   Motion (variante B aprovada).
+   Regra: nada fica escondido sem JS. O estado oculto só vale depois que
+   landing-motion.js prepara o observador e adiciona html.js-motion, e
+   nunca com prefers-reduced-motion: reduce.
+   ------------------------------------------------------------------ */
+
+.hero-shine {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(115deg, transparent 30%, rgba(183, 154, 223, .14) 48%, transparent 62%);
+    transform: translateX(-40%);
+    opacity: 0;
+}
+
+.card, .kpi { position: relative; overflow: hidden; }
+
+.card::after, .kpi::after {
+    content: "";
+    position: absolute;
+    inset: -40% auto -40% -30%;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .08), transparent);
+    transform: translateX(-120%) rotate(18deg);
+    pointer-events: none;
+}
+
+.navlinks a { position: relative; transition: color .3s ease; }
+
+.navlinks a::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -4px;
+    height: 1px;
+    background: var(--gold);
+    transform: scaleX(0);
+    transform-origin: left;
+}
+
+.navlinks a:hover { color: var(--ivory); }
+
+/* Cursor próprio: só ponteiro fino, nunca sobre o formulário, nunca em toque. */
+.cursor-dot, .cursor-ring {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 80;
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 0;
+    display: none;
+}
+
+.cursor-dot {
+    width: 8px;
+    height: 8px;
+    margin: -4px 0 0 -4px;
+    background: #d4c2f0;
+    box-shadow: 0 0 16px rgba(183, 154, 223, .8);
+}
+
+.cursor-ring {
+    width: 36px;
+    height: 36px;
+    margin: -18px 0 0 -18px;
+    border: 1px solid rgba(183, 154, 223, .55);
+    transition: opacity .25s ease, background-color .25s ease, scale .25s ease;
+}
+
+html.has-cursor .cursor-dot,
+html.has-cursor .cursor-ring { display: block; opacity: 1; }
+
+html.has-cursor.cursor-grow .cursor-ring { scale: 1.75; background: rgba(115, 82, 165, .12); }
+
+html.has-cursor.cursor-hidden .cursor-dot,
+html.has-cursor.cursor-hidden .cursor-ring { opacity: 0; }
+
+html.has-cursor .hero { cursor: none; }
+
+html.has-cursor .glass,
+html.has-cursor .glass * { cursor: auto; }
+
+html.has-cursor .glass a,
+html.has-cursor .glass button,
+html.has-cursor .glass summary,
+html.has-cursor .glass label { cursor: pointer; }
+
+html.has-cursor .glass input[type="text"],
+html.has-cursor .glass input[type="email"],
+html.has-cursor .glass input[type="password"] { cursor: text; }
+
+@media (pointer: coarse), (max-width: 720px), (prefers-reduced-motion: reduce) {
+    .cursor-dot, .cursor-ring { display: none !important; }
+    html.has-cursor .hero { cursor: auto; }
+}
+
 @media (prefers-reduced-motion: no-preference) {
-    html.js-motion .hero-copy .eyebrow,
-    html.js-motion #page-title,
-    html.js-motion .lede,
-    html.js-motion .unit,
-    html.js-motion .glass-shell,
-    html.js-motion .kpi,
-    html.js-motion #pauta .board,
-    html.js-motion .cards .card {
+    .hero-media, .dash-media { transition: transform 1s cubic-bezier(.16, 1, .3, 1); }
+    /* Paralaxe usa a propriedade translate (JS); o hover usa transform: não brigam. */
+    .hero:hover .hero-media { transform: scale(1.06); }
+    .dash:hover .dash-media { transform: scale(1.06); }
+    .hero:hover .hero-shine {
+        opacity: 1;
+        transform: translateX(20%);
+        transition: transform 1.1s cubic-bezier(.16, 1, .3, 1), opacity .5s ease;
+    }
+
+    .kpi, .card {
+        transition: transform .45s cubic-bezier(.16, 1, .3, 1),
+                    border-color .45s ease,
+                    box-shadow .45s ease,
+                    background-color .45s ease;
+    }
+    .kpi:hover, .card:hover {
+        transform: translateY(-10px) scale(1.015);
+        border-color: rgba(183, 154, 223, .55);
+        box-shadow: 0 24px 50px rgba(43, 23, 61, .55), 0 0 0 1px rgba(183, 154, 223, .2);
+        background-color: rgba(115, 82, 165, .12);
+    }
+    .card:hover::after, .kpi:hover::after {
+        transform: translateX(380%) rotate(18deg);
+        transition: transform .9s ease;
+    }
+
+    .btn { transition: transform .22s ease, box-shadow .22s ease; }
+    .btn:hover { transform: translateY(-2px) scale(1.01); box-shadow: 0 12px 28px rgba(0, 0, 0, .4); }
+    .btn:active { transform: translateY(0) scale(.99); }
+
+    .navlinks a::after { transition: transform .4s cubic-bezier(.16, 1, .3, 1); }
+    .navlinks a:hover::after { transform: scaleX(1); }
+
+    .tab-label { transition: background-color .3s ease, color .3s ease; }
+    .tab-label:hover { color: #fff; }
+
+    td { transition: background-color .35s ease; }
+    tr:hover td { background-color: rgba(115, 82, 165, .1); }
+
+    /* Título do hero: máscara por palavra (JS cria .word > .word-inner). */
+    html.js-motion #page-title .word {
+        display: inline-block;
+        overflow: hidden;
+        vertical-align: bottom;
+        padding: .14em .02em .06em;
+        margin: -.14em -.02em -.06em;
+    }
+    html.js-motion #page-title .word-inner {
+        display: block;
+        transform: translateY(110%) rotate(4deg);
+        filter: blur(12px);
         opacity: 0;
+    }
+    html.js-motion.is-hero-ready #page-title .word-inner {
+        transform: none;
+        filter: none;
+        opacity: 1;
+        transition: transform .85s cubic-bezier(.16, 1, .3, 1),
+                    filter .85s cubic-bezier(.16, 1, .3, 1),
+                    opacity .6s ease;
+        transition-delay: var(--d, 0ms);
+    }
+
+    /* Títulos de seção: recorte. */
+    html.js-motion .sechead:not(.is-in) h2 { clip-path: inset(0 0 100% 0); transform: translateY(12px); }
+    html.js-motion .sechead.is-in h2 {
+        transition: clip-path .8s cubic-bezier(.16, 1, .3, 1), transform .8s cubic-bezier(.16, 1, .3, 1);
+    }
+
+    /* Reveals genéricos. */
+    html.js-motion [data-reveal]:not(.is-in) { opacity: 0; transform: translateY(28px); }
+    html.js-motion [data-reveal].is-in {
+        transition: opacity .7s cubic-bezier(.16, 1, .3, 1),
+                    transform .7s cubic-bezier(.16, 1, .3, 1),
+                    clip-path .85s cubic-bezier(.16, 1, .3, 1),
+                    filter .85s cubic-bezier(.16, 1, .3, 1);
+        transition-delay: var(--d, 0ms);
+    }
+    html.js-motion .sechead[data-reveal]:not(.is-in) { opacity: 1; transform: none; }
+
+    /* Cards: máscara de baixo para cima, escalonada. */
+    html.js-motion [data-reveal="card"]:not(.is-in) {
+        opacity: 1;
+        transform: none;
+        clip-path: inset(100% 0 0 0);
+        filter: blur(6px);
+    }
+    html.js-motion [data-reveal="card"].is-in { clip-path: inset(0 0 0 0); }
+
+    .kpis .kpi:nth-child(2), .cards .card:nth-child(2) { --d: 90ms; }
+    .kpis .kpi:nth-child(3), .cards .card:nth-child(3) { --d: 180ms; }
+    .kpis .kpi:nth-child(4) { --d: 270ms; }
+    .kpis .kpi:nth-child(5) { --d: 360ms; }
+
+    /* Hover só depois que o reveal terminou (evita brigar com o transform). */
+    html.js-motion .kpi.is-in.is-done,
+    html.js-motion .card.is-in.is-done {
+        transition: transform .45s cubic-bezier(.16, 1, .3, 1),
+                    border-color .45s ease,
+                    box-shadow .45s ease,
+                    background-color .45s ease;
+        transition-delay: 0ms;
+    }
+
+    html.js-motion .kpi .bar > i { transform: scaleX(0); transform-origin: left; }
+    html.js-motion .kpi.is-in .bar > i { transform: scaleX(1); transition: transform 1.1s cubic-bezier(.16, 1, .3, 1) .1s; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-reveal],
+    #page-title .word-inner,
+    .sechead h2,
+    .hero-media,
+    .dash-media,
+    .kpi .bar > i {
+        opacity: 1 !important;
+        transform: none !important;
+        filter: none !important;
+        clip-path: none !important;
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+@media (scripting: none) {
+    [data-reveal], #page-title .word-inner, .sechead h2 {
+        opacity: 1 !important;
+        transform: none !important;
+        filter: none !important;
+        clip-path: none !important;
     }
 }

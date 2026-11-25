@@ -9,6 +9,8 @@
         @vite(['resources/css/landing.css', 'resources/js/landing-motion.js'])
     </head>
     <body class="landing">
+        <div class="cursor-dot" aria-hidden="true"></div>
+        <div class="cursor-ring" aria-hidden="true"></div>
         <a class="skip" href="#pauta">Ir para a pauta de hoje</a>
         <div class="page">
             <header class="nav">
@@ -27,12 +29,13 @@
 
             <section class="hero" aria-labelledby="page-title">
                 <img class="hero-media" src="{{ asset('images/hero-courthouse.jpg') }}" alt="">
+                <div class="hero-shine" aria-hidden="true"></div>
                 <div class="hero-in">
                     <div class="hero-copy">
-                        <p class="eyebrow">{{ $board['date_label'] }}</p>
+                        <p class="eyebrow" data-reveal>{{ $board['date_label'] }}</p>
                         <h1 class="big" id="page-title">A pauta do dia,<br><em>em um só lugar.</em></h1>
-                        <p class="lede">O novo Fokus Law on demand da 1ª Vara Crime de Ilhéus — acesso, pauta, audiências e produtividade da unidade, num ambiente novo e separado do atual.</p>
-                        <dl class="unit" id="unidade">
+                        <p class="lede" data-reveal>O novo Fokus Law on demand da 1ª Vara Crime de Ilhéus — acesso, pauta, audiências e produtividade da unidade, num ambiente novo e separado do atual.</p>
+                        <dl class="unit" id="unidade" data-reveal>
                             <div>
                                 <dt>Unidade</dt>
                                 <dd>{{ $board['unit']['name'] }}</dd>
@@ -60,7 +63,7 @@
                         </dl>
                     </div>
 
-                    <div class="glass-shell">
+                    <div class="glass-shell" data-reveal>
                     <aside class="glass" aria-label="Área de acesso" data-lenis-prevent>
                         @if (session('status'))
                             <p class="status" role="status">{{ session('status') }}</p>
@@ -150,7 +153,7 @@
             <section class="dash" id="produtividade">
                 <img class="dash-media" src="{{ asset('images/hero-unit.jpg') }}" alt="">
                 <div class="dash-shade" aria-hidden="true"></div>
-                <div class="sechead">
+                <div class="sechead" data-reveal>
                     <div>
                         <p class="eyebrow">Central da unidade · hoje, {{ $board['clock_label'] }}</p>
                         <h2>Hoje na unidade</h2>
@@ -163,7 +166,7 @@
 
                 <section class="kpis" aria-label="Indicadores de exemplo">
                     @foreach ($board['kpis'] as $kpi)
-                        <article class="kpi">
+                        <article class="kpi" data-reveal>
                             <div class="l">{{ $kpi['label'] }}</div>
                             <div class="n">{{ $kpi['value'] }} @if ($kpi['suffix'])<small>{{ $kpi['suffix'] }}</small>@endif</div>
                             <div class="s">{{ $kpi['detail'] }}</div>
@@ -172,8 +175,8 @@
                     @endforeach
                 </section>
 
-                <div class="board" id="pauta">
-                    <div class="sechead">
+                <div class="board" id="pauta" data-reveal>
+                    <div class="sechead" data-reveal>
                         <div>
                             <h2>Audiências do dia</h2>
                             <p>Acompanhamento ao vivo · partes e números anonimizados (exemplo)</p>
@@ -213,7 +216,7 @@
                 </div>
 
                 <div class="cards">
-                    <article class="card">
+                    <article class="card" data-reveal="card">
                         <h3>Calendário de eventos · {{ $board['month_label'] }}</h3>
                         <div class="cal">
                             @foreach ($board['weekdays'] as $weekday)
@@ -233,14 +236,14 @@
                             @endforeach
                         </ul>
                     </article>
-                    <article class="card" id="plantao">
+                    <article class="card" id="plantao" data-reveal="card">
                         <h3>Avisos e plantão</h3>
                         @foreach ($board['notices'] as $notice)
                             <div class="aviso"><b>{{ $notice['title'] }}</b>{{ $notice['body'] }}</div>
                         @endforeach
                         <div class="plantao"><b>{{ $board['duty']['title'] }}</b>{{ $board['duty']['body'] }}</div>
                     </article>
-                    <article class="card unit-card">
+                    <article class="card unit-card" data-reveal="card">
                         <h3>Dados da unidade</h3>
                         <p><b>{{ $board['unit']['name'] }}</b><br>{{ $board['unit']['court'] }} · {{ $board['unit']['district'] }}</p>
                         <p class="muted">{{ $board['unit']['address_label'] }}: {{ $board['unit']['address'] }}<br>{{ $board['unit']['phone_label'] }}: {{ $board['unit']['phone'] }}<br>{{ $board['unit']['hours_label'] }}: {{ $board['unit']['hours'] }}</p>

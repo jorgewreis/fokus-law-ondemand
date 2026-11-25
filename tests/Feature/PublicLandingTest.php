@@ -38,6 +38,25 @@ class PublicLandingTest extends TestCase
             ->assertDontSee('ios1vcrime.com.br/', false);
     }
 
+    public function test_landing_motion_never_hides_content_without_javascript(): void
+    {
+        $html = $this->get('/')->assertOk()->getContent();
+
+        $this->assertSame(3, substr_count($html, 'data-reveal="card"'));
+        $this->assertStringContainsString('<div class="cursor-dot" aria-hidden="true"></div>', $html);
+        $this->assertStringNotContainsString('js-motion', $html);
+        $this->assertDoesNotMatchRegularExpression('/<script(?![^>]*\bsrc=)[^>]*>/i', $html);
+
+        $css = (string) file_get_contents(resource_path('css/landing.css'));
+        $js = (string) file_get_contents(resource_path('js/landing-motion.js'));
+
+        $this->assertStringNotContainsString('#pauta .board', $css.$js);
+        $this->assertDoesNotMatchRegularExpression('/^\s*\[data-reveal\][^{]*\{\s*opacity:\s*0/m', $css);
+        $this->assertStringContainsString('html.js-motion [data-reveal]:not(.is-in)', $css);
+        $this->assertStringContainsString('prefers-reduced-motion: reduce', $css);
+        $this->assertStringContainsString('REVEAL_FALLBACK_MS = 1100', $js);
+    }
+
     public function test_prefixed_path_renders_the_same_landing(): void
     {
         $this->get('/novologin')
