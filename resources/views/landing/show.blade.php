@@ -26,7 +26,7 @@
             </header>
 
             <section class="hero" aria-labelledby="page-title">
-                <img class="hero-media" src="{{ asset('images/hero-sala.svg') }}" alt="">
+                <img class="hero-media" src="{{ asset('images/hero-courthouse.jpg') }}" alt="">
                 <div class="hero-in">
                     <div class="hero-copy">
                         <p class="eyebrow">{{ $board['date_label'] }}</p>
@@ -60,20 +60,19 @@
                         </dl>
                     </div>
 
+                    <div class="glass-shell">
                     <aside class="glass" aria-label="Área de acesso" data-lenis-prevent>
                         @if (session('status'))
                             <p class="status" role="status">{{ session('status') }}</p>
                         @endif
 
                         @guest
-                            <input class="tab-state" type="radio" name="access-tab" id="tab-entrar" @checked(! $cadastroAtivo)>
-                            <input class="tab-state" type="radio" name="access-tab" id="tab-cadastro" @checked($cadastroAtivo)>
-                            <div class="tabs">
-                                <label class="tab-label tab-label-entrar" for="tab-entrar">Entrar</label>
-                                <label class="tab-label tab-label-cadastro" for="tab-cadastro">Solicitar cadastro</label>
-                            </div>
+                            <nav class="tabs" aria-label="Formulários de acesso">
+                                <a class="tab-label tab-label-entrar @if(! $cadastroAtivo) is-active @endif" href="#acesso-entrar">Entrar</a>
+                                <a class="tab-label tab-label-cadastro @if($cadastroAtivo) is-active @endif" href="#acesso-cadastro">Solicitar cadastro</a>
+                            </nav>
 
-                            <div class="panel-login">
+                            <div class="panel-login" id="acesso-entrar">
                                 <p class="kicker">Área de acesso</p>
                                 <h2>Entrar no Fokus Law</h2>
                                 <p class="hint">E-mail institucional ou matrícula funcional.</p>
@@ -104,7 +103,7 @@
                                 </form>
                             </div>
 
-                            <div class="panel-cadastro">
+                            <div class="panel-cadastro" id="acesso-cadastro">
                                 <div class="cadastro-note">
                                     <h3>Ainda não tem acesso?</h3>
                                     <p>Solicite cadastro. A liberação depende de aprovação da unidade.</p>
@@ -116,7 +115,7 @@
                                     <div class="two">
                                         <div>
                                             <label class="fld" for="display_name">Nome completo</label>
-                                            <input id="display_name" name="display_name" type="text" value="{{ old('display_name') }}" autocomplete="name" maxlength="120" required placeholder="Seu nome">
+                                            <input id="display_name" name="display_name" type="text" value="{{ old('display_name') }}" autocomplete="name" maxlength="120" required placeholder="Seu nome" @if($cadastroAtivo) autofocus @endif>
                                         </div>
                                         <div>
                                             <label class="fld" for="matricula">Matrícula</label>
@@ -129,7 +128,6 @@
                                     <input id="email" name="email" type="email" value="{{ old('email') }}" autocomplete="email" maxlength="254" required placeholder="nome@exemplo.tjba.jus.br">
                                     @error('email') <p class="field-error">{{ $message }}</p> @enderror
                                     <button class="btn ghost" type="submit">Solicitar cadastro</button>
-                                    <p class="fine">Pedido para aprovação · dados ilustrativos neste ambiente</p>
                                 </form>
                             </div>
                         @else
@@ -144,12 +142,13 @@
                             </div>
                         @endguest
                     </aside>
+                    </div>
                 </div>
                 <a class="scroll-cue" href="#pauta"><i></i>Role para a pauta de hoje</a>
             </section>
 
             <section class="dash" id="produtividade">
-                <img class="dash-media" src="{{ asset('images/hero-sala.svg') }}" alt="">
+                <img class="dash-media" src="{{ asset('images/hero-unit.jpg') }}" alt="">
                 <div class="dash-shade" aria-hidden="true"></div>
                 <div class="sechead">
                     <div>
