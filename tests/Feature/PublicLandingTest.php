@@ -30,6 +30,11 @@ class PublicLandingTest extends TestCase
             ->assertSee('Números de exemplo')
             ->assertSee('Esqueci a senha')
             ->assertSee('Solicitar cadastro')
+            ->assertSee('Ainda não tem acesso?')
+            ->assertSee('Nome completo')
+            ->assertSee('hero-courthouse.jpg', false)
+            ->assertSee('hero-unit.jpg', false)
+            ->assertDontSee('Mockup para aprovação')
             ->assertDontSee('ios1vcrime.com.br/', false);
     }
 
