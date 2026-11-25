@@ -1,0 +1,168 @@
+name: Fokus Law Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: SHA completo da ponta da main, com o CI Fokus Law verde
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: law-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Conferir SHA e CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exigir a ponta atual da main
+        env:
+          CANDIDATE: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags origin main
+          tip="$(git rev-parse origin/main)"
+          if [[ "$CANDIDATE" != "$tip" ]]; then
+            echo "candidate_sha não é a ponta da main." >&2
+            exit 1
+          fi
+      - name: Exigir CI verde nesse SHA
+        env:
+          CANDIDATE: ${{ inputs.candidate_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ok="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${CANDIDATE}/check-runs?per_page=100" \
+            --jq '[.check_runs[] | select(.name=="build-and-check" and .conclusion=="success")] | length')"
+          if [[ "$ok" -lt 1 ]]; then
+            echo "O check build-and-check não está verde nesse SHA." >&2
+            exit 1
+          fi
+
+  deploy:
+    name: Publicar release manual
+    needs: gate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production-law
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+          tools: composer:v2
+          coverage: none
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Montar o release sem segredos de produção
+        run: |
+          set -euo pipefail
+          composer install --no-dev --no-interaction --prefer-dist --no-progress --optimize-autoloader
+          npm ci
+          npm run build
+          tar -czf "$RUNNER_TEMP/law-release.tgz" \
+            --exclude .git \
+            --exclude node_modules \
+            --exclude storage \
+            --exclude tests \
+            --exclude .env \
+            --exclude docker.env \
+            --exclude .github \
+            .
+      - name: Abrir SSH
+        env:
+          LAW_DEPLOY_HOST: ${{ secrets.LAW_DEPLOY_HOST }}
+          LAW_DEPLOY_PORT: ${{ secrets.LAW_DEPLOY_PORT }}
+          LAW_DEPLOY_USER: ${{ secrets.LAW_DEPLOY_USER }}
+          LAW_DEPLOY_SSH_KEY: ${{ secrets.LAW_DEPLOY_SSH_KEY }}
+          LAW_DEPLOY_KNOWN_HOSTS: ${{ secrets.LAW_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$LAW_DEPLOY_HOST"
+          test -n "$LAW_DEPLOY_PORT"
+          test -n "$LAW_DEPLOY_USER"
+          test -n "$LAW_DEPLOY_SSH_KEY"
+          test -n "$LAW_DEPLOY_KNOWN_HOSTS"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$LAW_DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$LAW_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -p "$LAW_DEPLOY_PORT" \
+            "$LAW_DEPLOY_USER@$LAW_DEPLOY_HOST" exit
+      - name: Enviar o release e publicar
+        id: publish
+        env:
+          LAW_DEPLOY_HOST: ${{ secrets.LAW_DEPLOY_HOST }}
+          LAW_DEPLOY_PORT: ${{ secrets.LAW_DEPLOY_PORT }}
+          LAW_DEPLOY_USER: ${{ secrets.LAW_DEPLOY_USER }}
+          LAW_DEPLOY_PATH: ${{ secrets.LAW_DEPLOY_PATH }}
+          LAW_FPM_RELOAD: ${{ vars.LAW_FPM_RELOAD }}
+          CANDIDATE: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$LAW_DEPLOY_PATH" =~ ^/[A-Za-z0-9_./-]+$ ]]
+          [[ "$LAW_DEPLOY_PATH" != *..* ]]
+          [[ "$CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
+          remote="$LAW_DEPLOY_USER@$LAW_DEPLOY_HOST"
+          ssh_args=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -p "$LAW_DEPLOY_PORT")
+          ssh "${ssh_args[@]}" "$remote" "mkdir -p '$LAW_DEPLOY_PATH/releases' '$LAW_DEPLOY_PATH/backups'"
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes -P "$LAW_DEPLOY_PORT" \
+            "$RUNNER_TEMP/law-release.tgz" deploy/remote-release.sh \
+            "$remote:$LAW_DEPLOY_PATH/releases/"
+          reload="${LAW_FPM_RELOAD:-sudo -n systemctl reload php8.5-fpm}"
+          quoted_reload="$(printf '%q' "$reload")"
+          ssh "${ssh_args[@]}" "$remote" \
+            "LAW_FPM_RELOAD=$quoted_reload bash '$LAW_DEPLOY_PATH/releases/remote-release.sh' '$LAW_DEPLOY_PATH' '$CANDIDATE' '$LAW_DEPLOY_PATH/releases/law-release.tgz'"
+      - name: Limpar cache da Cloudflare se estiver configurado
+        id: cdn
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${CLOUDFLARE_API_TOKEN}" || -z "${CLOUDFLARE_ZONE_ID}" ]]; then
+            echo "result=ignorado" >> "$GITHUB_OUTPUT"
+            echo "Purge da Cloudflare não configurado."
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 20 \
+            --request POST "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data '{"purge_everything":true}' >/dev/null
+          echo "result=feito" >> "$GITHUB_OUTPUT"
+      - name: Resumo da evidência
+        if: always()
+        env:
+          CANDIDATE: ${{ inputs.candidate_sha }}
+          PUBLISH: ${{ steps.publish.outcome }}
+          CDN: ${{ steps.cdn.outputs.result || steps.cdn.outcome }}
+        run: |
+          {
+            echo "### Fokus Law on demand"
+            echo "- SHA: \`$CANDIDATE\`"
+            echo "- Publicação: $PUBLISH"
+            echo "- Health esperado: \`/novologin/up\` na origem"
+            echo "- Purge Cloudflare: $CDN"
+            echo "- Rollback: o script devolve o symlink \`current\` ao release anterior se o health não for 200. Migrations não são desfeitas."
+          } >> "$GITHUB_STEP_SUMMARY"

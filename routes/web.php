@@ -17,6 +17,8 @@ use App\Http\Controllers\PersonController;
 use App\Http\Controllers\ProcessSecrecyAdminController;
 use App\Http\Controllers\SecrecyAdminController;
 use App\Http\Controllers\UnitAdminController;
+use Illuminate\Foundation\Events\DiagnosingHealth;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 
 $register = function (bool $shouldName): void {
@@ -29,6 +31,20 @@ $register = function (bool $shouldName): void {
     };
 
     $name(Route::get('/', LandingController::class), 'home');
+
+    if (! $shouldName) {
+        Route::get('/up', function () {
+            try {
+                Event::dispatch(new DiagnosingHealth);
+            } catch (Throwable $exception) {
+                report($exception);
+
+                return response('unhealthy', 500);
+            }
+
+            return response('ok', 200);
+        });
+    }
 
     $name(Route::get('/robots.txt', function () {
         return response("User-agent: *\nDisallow: /\n", 200, [

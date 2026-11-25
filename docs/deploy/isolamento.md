@@ -1,0 +1,26 @@
+# Isolamento negativo do Fokus Law on demand
+
+Estes passos ainda não foram executados no VPS. O gate correspondente continua aberto até o Jorge rodar o comando no servidor e registrar o resultado, sem colar senha, dump ou listagem de arquivos.
+
+## O que a prova precisa mostrar
+
+- A conta MySQL `fokuslaw`, em `127.0.0.1`, não abre o banco `fokuscloud`.
+- O cookie da aplicação é `fokus_law_session` com `Path=/novologin`. O navegador não o envia para outros caminhos do domínio. `PHPSESSID` não autentica esta aplicação.
+- O usuário de sistema `law-ondemand` não lê homes de outros produtos.
+
+## No servidor, como law-ondemand
+
+```bash
+cd /home/law-ondemand/htdocs/law.ios1vcrime.com.br/current
+php artisan law:isolation-check --require-mysql
+```
+
+Saída esperada: banco proibido inacessível, caminhos estrangeiros ilegíveis ou ausentes, cookie com `Path=/novologin`, código de saída 0. Se algum caminho estrangeiro estiver ausente, isso não conta como prova; confirme o caminho real do outro produto e rode de novo.
+
+## No navegador
+
+1. Entre por `https://ios1vcrime.com.br/novologin` depois que o Worker estiver roteado.
+2. No armazenamento de cookies, `fokus_law_session` deve ter caminho `/novologin` e não deve aparecer em `/` nem em outro subdomínio.
+3. Um `PHPSESSID` já existente do sistema atual não muda esta sessão.
+
+A suíte PHP cobre o contrato do cookie e a decisão do comando. Ela não substitui a execução no VPS.

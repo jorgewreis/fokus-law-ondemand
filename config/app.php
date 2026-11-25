@@ -62,6 +62,12 @@ return [
     'path_prefix' => env('APP_PATH_PREFIX', 'novologin'),
 
     /*
+    | Hostname of the CloudPanel origin. Requests that arrive here are
+    | rewritten to the public host in APP_URL for redirects and signatures.
+    */
+    'origin_host' => env('APP_ORIGIN_HOST', 'law.ios1vcrime.com.br'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------

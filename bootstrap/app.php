@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CanonicalPublicUrl;
 use App\Http\Middleware\ContentSecurityPolicy;
 use App\Http\Middleware\NoIndex;
 use App\Http\Middleware\RequireMfa;
@@ -18,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->prepend(CanonicalPublicUrl::class);
         $middleware->append(NoIndex::class);
         $middleware->append(ContentSecurityPolicy::class);
         $middleware->redirectGuestsTo(fn (Request $request) => route('login.create'));
