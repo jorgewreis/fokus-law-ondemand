@@ -27,17 +27,22 @@ class AuthController extends Controller
     public function store(Request $request, TotpService $totp, RecoveryCodeService $recoveryCodes, AccountAudit $audit): RedirectResponse
     {
         $validated = $request->validate([
-            'email' => ['required', 'string', 'email:rfc', 'max:254'],
+            'email' => ['nullable', 'required_without:identifier', 'string', 'email:rfc', 'max:254'],
+            'identifier' => ['nullable', 'required_without:email', 'string', 'max:254'],
             'password' => ['required', 'string', 'max:1024'],
             'totp' => ['nullable', 'string', 'max:16'],
             'recovery_code' => ['nullable', 'string', 'max:32'],
+        ], [
+            'identifier.required_without' => 'Informe o e-mail ou a matrícula.',
+            'email.required_without' => 'Informe o e-mail ou a matrícula.',
+            'password.required' => 'Informe a senha.',
         ]);
 
-        $email = mb_strtolower(trim($validated['email']));
-        $user = User::query()->where('email', $email)->first();
+        $identifier = trim((string) ($validated['identifier'] ?? $validated['email'] ?? ''));
+        $user = $this->userForIdentifier($identifier);
 
         if ($user === null || ! Hash::check($validated['password'], $user->password)) {
-            return back()->withErrors(['auth' => 'Credenciais ou segundo fator inválidos.'])->onlyInput('email');
+            return back()->withErrors(['auth' => 'Credenciais ou segundo fator inválidos.'])->onlyInput('email', 'identifier');
         }
 
         if ($user->mfa_enabled_at === null && ($user->is_synthetic_admin || $user->mfa_reset_required)) {
@@ -51,12 +56,19 @@ class AuthController extends Controller
             return redirect()->route('mfa-enrollment.create');
         }
 
-        if (! $user->is_active || $user->mfa_enabled_at === null) {
-            return back()->withErrors(['auth' => 'Credenciais ou segundo fator inválidos.'])->onlyInput('email');
+        if (! $user->is_active) {
+            return back()->withErrors(['auth' => 'Credenciais ou segundo fator inválidos.'])->onlyInput('email', 'identifier');
+        }
+
+        if ($user->mfa_enabled_at === null) {
+            Auth::login($user, $request->boolean('remember'));
+            $request->session()->regenerate();
+
+            return redirect()->intended(route('home'));
         }
 
         if (filled($validated['recovery_code'] ?? null) === filled($validated['totp'] ?? null)) {
-            return back()->withErrors(['auth' => 'Credenciais ou segundo fator inválidos.'])->onlyInput('email');
+            return back()->withErrors(['auth' => 'Credenciais ou segundo fator inválidos.'])->onlyInput('email', 'identifier');
         }
 
         $recovered = false;
@@ -68,10 +80,10 @@ class AuthController extends Controller
         }
 
         if (! $recovered) {
-            return back()->withErrors(['auth' => 'Credenciais ou segundo fator inválidos.'])->onlyInput('email');
+            return back()->withErrors(['auth' => 'Credenciais ou segundo fator inválidos.'])->onlyInput('email', 'identifier');
         }
 
-        Auth::login($user);
+        Auth::login($user, $request->boolean('remember'));
         $request->session()->regenerate();
         $request->session()->put('auth.mfa_verified_at', now()->timestamp);
 
@@ -104,5 +116,18 @@ class AuthController extends Controller
 
             return true;
         });
+    }
+
+    private function userForIdentifier(string $identifier): ?User
+    {
+        if ($identifier === '') {
+            return null;
+        }
+
+        if (str_contains($identifier, '@')) {
+            return User::query()->where('email', mb_strtolower($identifier))->first();
+        }
+
+        return User::query()->where('matricula', $identifier)->first();
     }
 }

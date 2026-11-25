@@ -2,7 +2,7 @@
 
 ## Estado e limites
 
-Esta base prepara execução local sintética e verificações automatizadas. Ela não configura nem autoriza deploy no KVM1, não usa dados reais ou PJe e não constitui homologação. O KVM1 é compartilhado com outros produtos; a ativação do ambiente sintético remoto permanece bloqueada pelos controles pendentes em [ADR-0001](../../docs/adr/0001-fokus-law-greenfield-stack-and-boundaries.md) e na REI-195. O Compose local tem um serviço `scheduler` para executar as tarefas agendadas; isso não configura o scheduler no VPS. O código-fonte canônico está em `apps/law`.
+Esta base prepara execução local sintética e verificações automatizadas. Ela não configura nem autoriza deploy no KVM1, não usa dados reais ou PJe e não constitui homologação. O KVM1 é compartilhado com outros produtos; a ativação do ambiente sintético remoto permanece bloqueada pelos controles pendentes em [ADR-0001](docs/adr/0001-fokus-law-greenfield-stack-and-boundaries.md) e na REI-195. O Compose local tem um serviço `scheduler` para executar as tarefas agendadas; isso não configura o scheduler no VPS. O código-fonte canônico é a raiz deste repositório, `jorgewreis/fokus-law-ondemand`, extraído de `apps/law` no monorepo `jorgewreis/fokus`.
 
 ## Pré-requisitos locais
 
@@ -11,7 +11,7 @@ Esta base prepara execução local sintética e verificações automatizadas. El
 
 ## Primeiro início
 
-No PowerShell, dentro de `apps/law`:
+No PowerShell, na raiz deste repositório:
 
 ```powershell
 if (Test-Path docker.env) {
@@ -50,7 +50,7 @@ O Compose configura o app em `127.0.0.1:8081`; MySQL não publica porta no host,
 
 Não executar deploy remoto até registrar evidência de cada item na REI-195:
 
-1. Trabalhar a partir da cópia versionada em `apps/law`; não tratar worktrees temporários como diretórios-fonte adicionais.
+1. Trabalhar a partir da cópia versionada na raiz de `jorgewreis/fokus-law-ondemand`; não tratar worktrees temporários como diretórios-fonte adicionais.
 2. Confirmar se a hospedagem será CloudPanel com PHP-FPM nativo ou container atrás do proxy; este pacote só implementa Docker local.
 3. Criar site/usuário e pool PHP do Law segregados, database/user exclusivos, validar InnoDB e executar testes negativos de isolamento.
 4. Esclarecer a origem e exposição da porta 3333, confirmar firewall Hostinger e demonstrar restrição de origem Cloudflare sem afetar outros sites.

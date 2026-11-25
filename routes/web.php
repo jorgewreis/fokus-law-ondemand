@@ -9,6 +9,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CompetencyAdminController;
 use App\Http\Controllers\CourtProcessController;
 use App\Http\Controllers\InstitutionalContactController;
+use App\Http\Controllers\LandingController;
 use App\Http\Controllers\MfaEnrollmentController;
 use App\Http\Controllers\MfaRecoveryAdminController;
 use App\Http\Controllers\PersonAccountLinkAdminController;
@@ -18,103 +19,147 @@ use App\Http\Controllers\SecrecyAdminController;
 use App\Http\Controllers\UnitAdminController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-})->name('home');
+$register = function (bool $shouldName): void {
+    $name = function ($route, string $routeName) use ($shouldName) {
+        if ($shouldName) {
+            $route->name($routeName);
+        }
 
-Route::get('/contatos', InstitutionalContactController::class)
-    ->name('institutional-contacts.show');
+        return $route;
+    };
 
-Route::get('/account-requests/create', [AccountRequestController::class, 'create'])
-    ->name('account-requests.create');
-Route::post('/account-requests', [AccountRequestController::class, 'store'])
-    ->middleware('throttle:5,1')
-    ->name('account-requests.store');
-Route::get('/account-requests/{accountRequest}/confirm', [AccountRequestController::class, 'showConfirmation'])
-    ->name('account-requests.confirm.show');
-Route::post('/account-requests/{accountRequest}/confirm', [AccountRequestController::class, 'confirm'])
-    ->middleware('throttle:10,1')
-    ->name('account-requests.confirm');
+    $name(Route::get('/', LandingController::class), 'home');
 
-Route::get('/login', [AuthController::class, 'create'])->name('login.create');
-Route::post('/login', [AuthController::class, 'store'])->middleware('throttle:5,1')->name('login.store');
-Route::post('/logout', [AuthController::class, 'destroy'])->middleware('auth')->name('logout');
+    $name(Route::get('/robots.txt', function () {
+        return response("User-agent: *\nDisallow: /\n", 200, [
+            'Content-Type' => 'text/plain; charset=UTF-8',
+            'Cache-Control' => 'public, max-age=3600',
+        ]);
+    }), 'robots');
 
-Route::middleware('pending.mfa')->group(function (): void {
-    Route::get('/mfa/enroll', [MfaEnrollmentController::class, 'create'])->name('mfa-enrollment.create');
-    Route::post('/mfa/enroll', [MfaEnrollmentController::class, 'store'])->middleware('throttle:5,1')->name('mfa-enrollment.store');
-});
+    $name(Route::get('/contatos', InstitutionalContactController::class), 'institutional-contacts.show');
 
-Route::get('/account-activation', [AccountActivationController::class, 'show'])->name('account-activation.show');
-Route::post('/account-activation', [AccountActivationController::class, 'store'])->middleware('throttle:5,1')->name('account-activation.store');
+    $name(Route::get('/account-requests/create', [AccountRequestController::class, 'create']), 'account-requests.create');
+    $name(Route::post('/account-requests', [AccountRequestController::class, 'store'])->middleware('throttle:5,1'), 'account-requests.store');
+    $name(Route::get('/account-requests/{accountRequest}/confirm', [AccountRequestController::class, 'showConfirmation']), 'account-requests.confirm.show');
+    $name(Route::post('/account-requests/{accountRequest}/confirm', [AccountRequestController::class, 'confirm'])->middleware('throttle:10,1'), 'account-requests.confirm');
 
-Route::get('/account-recovery', [AccountRecoveryController::class, 'create'])->name('account-recovery.create');
-Route::post('/account-recovery', [AccountRecoveryController::class, 'store'])->middleware('throttle:5,1')->name('account-recovery.store');
+    $name(Route::get('/login', [AuthController::class, 'create']), 'login.create');
+    $name(Route::post('/login', [AuthController::class, 'store'])->middleware('throttle:5,1'), 'login.store');
+    $name(Route::post('/logout', [AuthController::class, 'destroy'])->middleware('auth'), 'logout');
 
-Route::get('/password/forgot', [AccountPasswordController::class, 'requestForm'])->name('account-password.request');
-Route::post('/password/forgot', [AccountPasswordController::class, 'sendLink'])->middleware('throttle:3,1')->name('account-password.email');
-Route::get('/password/reset', [AccountPasswordController::class, 'resetForm'])->name('password.reset');
-Route::post('/password/reset', [AccountPasswordController::class, 'update'])->middleware('throttle:5,1')->name('account-password.update');
+    Route::middleware('pending.mfa')->group(function () use ($name): void {
+        $name(Route::get('/mfa/enroll', [MfaEnrollmentController::class, 'create']), 'mfa-enrollment.create');
+        $name(Route::post('/mfa/enroll', [MfaEnrollmentController::class, 'store'])->middleware('throttle:5,1'), 'mfa-enrollment.store');
+    });
 
-Route::prefix('/people')->name('people.')->middleware(['auth', 'mfa'])->group(function (): void {
-    Route::post('/address/lookup', [PersonController::class, 'lookupAddress'])->middleware('throttle:10,1')->name('address.lookup');
-    Route::get('/me/contacts/edit', [PersonController::class, 'editOwnContacts'])->name('own-contacts.edit');
-    Route::put('/me/contacts', [PersonController::class, 'updateOwnContacts'])->name('own-contacts.update');
-    Route::post('/me/contacts/address/lookup', [PersonController::class, 'lookupOwnAddress'])->middleware('throttle:10,1')->name('own-contacts.address.lookup');
-    Route::post('/{personId}/address/lookup', [PersonController::class, 'lookupAddressForPerson'])->whereNumber('personId')->middleware('throttle:10,1')->name('person.address.lookup');
-    Route::get('/', [PersonController::class, 'index'])->name('index');
-    Route::post('/search', [PersonController::class, 'search'])->name('search');
-    Route::get('/create', [PersonController::class, 'create'])->name('create');
-    Route::post('/', [PersonController::class, 'store'])->name('store');
-    Route::get('/{personId}/edit', [PersonController::class, 'edit'])->whereNumber('personId')->name('edit');
-    Route::get('/{personId}', [PersonController::class, 'show'])->whereNumber('personId')->name('show');
-    Route::put('/{personId}', [PersonController::class, 'update'])->whereNumber('personId')->name('update');
-    Route::delete('/{personId}', [PersonController::class, 'destroy'])->whereNumber('personId')->name('destroy');
-});
+    $name(Route::get('/account-activation', [AccountActivationController::class, 'show']), 'account-activation.show');
+    $name(Route::post('/account-activation', [AccountActivationController::class, 'store'])->middleware('throttle:5,1'), 'account-activation.store');
 
-Route::prefix('/processes')->name('processes.')->middleware(['auth', 'mfa'])->group(function (): void {
-    Route::get('/create', [CourtProcessController::class, 'create'])->middleware('grant:processes,create')->name('create');
-    Route::post('/', [CourtProcessController::class, 'store'])->middleware('grant:processes,create')->name('store');
-    Route::put('/{processId}/status', [CourtProcessController::class, 'updateStatus'])->whereNumber('processId')->name('status.update');
-    Route::get('/{processId}', [CourtProcessController::class, 'show'])->whereNumber('processId')->name('show');
-});
+    $name(Route::get('/account-recovery', [AccountRecoveryController::class, 'create']), 'account-recovery.create');
+    $name(Route::post('/account-recovery', [AccountRecoveryController::class, 'store'])->middleware('throttle:5,1'), 'account-recovery.store');
 
-Route::prefix('/admin/accounts')->name('account-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
-    Route::get('/', [AccountAdminController::class, 'index'])->name('index');
-    Route::post('/requests/{accountRequest}/approve', [AccountAdminController::class, 'approve'])->name('approve');
-    Route::post('/requests/{accountRequest}/reject', [AccountAdminController::class, 'reject'])->name('reject');
-    Route::post('/users/{user}/grants', [AccountAdminController::class, 'grants'])->name('grants');
-    Route::post('/users/{user}/invite', [AccountAdminController::class, 'reissue'])->name('reissue');
-});
+    $name(Route::get('/password/forgot', [AccountPasswordController::class, 'requestForm']), 'account-password.request');
+    $name(Route::post('/password/forgot', [AccountPasswordController::class, 'sendLink'])->middleware('throttle:3,1'), 'account-password.email');
+    $name(Route::get('/password/reset', [AccountPasswordController::class, 'resetForm']), 'password.reset');
+    $name(Route::post('/password/reset', [AccountPasswordController::class, 'update'])->middleware('throttle:5,1'), 'account-password.update');
 
-Route::post('/admin/accounts/mfa-recovery/{recoveryRequest}/approve', [MfaRecoveryAdminController::class, 'approve'])
-    ->middleware(['auth', 'mfa', 'synthetic.admin'])
-    ->name('mfa-recovery.approve');
+    Route::prefix('/people')->name($shouldName ? 'people.' : '')->middleware(['auth', 'mfa'])->group(function () use ($shouldName): void {
+        $route = function ($definition, string $routeName) use ($shouldName) {
+            return $shouldName ? $definition->name($routeName) : $definition;
+        };
 
-Route::prefix('/admin/competencies')->name('competency-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
-    Route::get('/', [CompetencyAdminController::class, 'index'])->name('index');
-    Route::post('/catalog', [CompetencyAdminController::class, 'import'])->name('import');
-    Route::post('/settings', [CompetencyAdminController::class, 'settings'])->name('settings');
-    Route::post('/users/{user}/grants', [CompetencyAdminController::class, 'grant'])->name('grant');
-});
+        $route(Route::post('/address/lookup', [PersonController::class, 'lookupAddress'])->middleware('throttle:10,1'), 'address.lookup');
+        $route(Route::get('/me/contacts/edit', [PersonController::class, 'editOwnContacts']), 'own-contacts.edit');
+        $route(Route::put('/me/contacts', [PersonController::class, 'updateOwnContacts']), 'own-contacts.update');
+        $route(Route::post('/me/contacts/address/lookup', [PersonController::class, 'lookupOwnAddress'])->middleware('throttle:10,1'), 'own-contacts.address.lookup');
+        $route(Route::post('/{personId}/address/lookup', [PersonController::class, 'lookupAddressForPerson'])->whereNumber('personId')->middleware('throttle:10,1'), 'person.address.lookup');
+        $route(Route::get('/', [PersonController::class, 'index']), 'index');
+        $route(Route::post('/search', [PersonController::class, 'search']), 'search');
+        $route(Route::get('/create', [PersonController::class, 'create']), 'create');
+        $route(Route::post('/', [PersonController::class, 'store']), 'store');
+        $route(Route::get('/{personId}/edit', [PersonController::class, 'edit'])->whereNumber('personId'), 'edit');
+        $route(Route::get('/{personId}', [PersonController::class, 'show'])->whereNumber('personId'), 'show');
+        $route(Route::put('/{personId}', [PersonController::class, 'update'])->whereNumber('personId'), 'update');
+        $route(Route::delete('/{personId}', [PersonController::class, 'destroy'])->whereNumber('personId'), 'destroy');
+    });
 
-Route::prefix('/admin/secrecy')->name('secrecy-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
-    Route::get('/', [SecrecyAdminController::class, 'index'])->name('index');
-    Route::post('/users/{user}/grants', [SecrecyAdminController::class, 'grant'])->name('grant');
-});
+    Route::prefix('/processes')->name($shouldName ? 'processes.' : '')->middleware(['auth', 'mfa'])->group(function () use ($shouldName): void {
+        $route = function ($definition, string $routeName) use ($shouldName) {
+            return $shouldName ? $definition->name($routeName) : $definition;
+        };
 
-Route::prefix('/admin/process-secrecy')->name('process-secrecy-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
-    Route::get('/', [ProcessSecrecyAdminController::class, 'index'])->name('index');
-    Route::put('/{processId}', [ProcessSecrecyAdminController::class, 'update'])->whereNumber('processId')->name('update');
-});
+        $route(Route::get('/create', [CourtProcessController::class, 'create'])->middleware('grant:processes,create'), 'create');
+        $route(Route::post('/', [CourtProcessController::class, 'store'])->middleware('grant:processes,create'), 'store');
+        $route(Route::put('/{processId}/status', [CourtProcessController::class, 'updateStatus'])->whereNumber('processId'), 'status.update');
+        $route(Route::get('/{processId}', [CourtProcessController::class, 'show'])->whereNumber('processId'), 'show');
+    });
 
-Route::prefix('/admin/person-account-links')->name('person-account-links.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
-    Route::get('/', [PersonAccountLinkAdminController::class, 'index'])->name('index');
-    Route::post('/', [PersonAccountLinkAdminController::class, 'store'])->name('store');
-});
+    Route::prefix('/admin/accounts')->name($shouldName ? 'account-admin.' : '')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function () use ($shouldName): void {
+        $route = function ($definition, string $routeName) use ($shouldName) {
+            return $shouldName ? $definition->name($routeName) : $definition;
+        };
 
-Route::prefix('/admin/units')->name('unit-admin.')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function (): void {
-    Route::get('/', [UnitAdminController::class, 'index'])->name('index');
-    Route::post('/settings', [UnitAdminController::class, 'configure'])->name('configure');
-    Route::post('/users/{user}/grants', [UnitAdminController::class, 'grant'])->name('grant');
+        $route(Route::get('/', [AccountAdminController::class, 'index']), 'index');
+        $route(Route::post('/requests/{accountRequest}/approve', [AccountAdminController::class, 'approve']), 'approve');
+        $route(Route::post('/requests/{accountRequest}/reject', [AccountAdminController::class, 'reject']), 'reject');
+        $route(Route::post('/users/{user}/grants', [AccountAdminController::class, 'grants']), 'grants');
+        $route(Route::post('/users/{user}/invite', [AccountAdminController::class, 'reissue']), 'reissue');
+    });
+
+    $name(Route::post('/admin/accounts/mfa-recovery/{recoveryRequest}/approve', [MfaRecoveryAdminController::class, 'approve'])->middleware(['auth', 'mfa', 'synthetic.admin']), 'mfa-recovery.approve');
+
+    Route::prefix('/admin/competencies')->name($shouldName ? 'competency-admin.' : '')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function () use ($shouldName): void {
+        $route = function ($definition, string $routeName) use ($shouldName) {
+            return $shouldName ? $definition->name($routeName) : $definition;
+        };
+
+        $route(Route::get('/', [CompetencyAdminController::class, 'index']), 'index');
+        $route(Route::post('/catalog', [CompetencyAdminController::class, 'import']), 'import');
+        $route(Route::post('/settings', [CompetencyAdminController::class, 'settings']), 'settings');
+        $route(Route::post('/users/{user}/grants', [CompetencyAdminController::class, 'grant']), 'grant');
+    });
+
+    Route::prefix('/admin/secrecy')->name($shouldName ? 'secrecy-admin.' : '')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function () use ($shouldName): void {
+        $route = function ($definition, string $routeName) use ($shouldName) {
+            return $shouldName ? $definition->name($routeName) : $definition;
+        };
+
+        $route(Route::get('/', [SecrecyAdminController::class, 'index']), 'index');
+        $route(Route::post('/users/{user}/grants', [SecrecyAdminController::class, 'grant']), 'grant');
+    });
+
+    Route::prefix('/admin/process-secrecy')->name($shouldName ? 'process-secrecy-admin.' : '')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function () use ($shouldName): void {
+        $route = function ($definition, string $routeName) use ($shouldName) {
+            return $shouldName ? $definition->name($routeName) : $definition;
+        };
+
+        $route(Route::get('/', [ProcessSecrecyAdminController::class, 'index']), 'index');
+        $route(Route::put('/{processId}', [ProcessSecrecyAdminController::class, 'update'])->whereNumber('processId'), 'update');
+    });
+
+    Route::prefix('/admin/person-account-links')->name($shouldName ? 'person-account-links.' : '')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function () use ($shouldName): void {
+        $route = function ($definition, string $routeName) use ($shouldName) {
+            return $shouldName ? $definition->name($routeName) : $definition;
+        };
+
+        $route(Route::get('/', [PersonAccountLinkAdminController::class, 'index']), 'index');
+        $route(Route::post('/', [PersonAccountLinkAdminController::class, 'store']), 'store');
+    });
+
+    Route::prefix('/admin/units')->name($shouldName ? 'unit-admin.' : '')->middleware(['auth', 'mfa', 'synthetic.admin'])->group(function () use ($shouldName): void {
+        $route = function ($definition, string $routeName) use ($shouldName) {
+            return $shouldName ? $definition->name($routeName) : $definition;
+        };
+
+        $route(Route::get('/', [UnitAdminController::class, 'index']), 'index');
+        $route(Route::post('/settings', [UnitAdminController::class, 'configure']), 'configure');
+        $route(Route::post('/users/{user}/grants', [UnitAdminController::class, 'grant']), 'grant');
+    });
+};
+
+$register(true);
+
+Route::prefix('novologin')->group(function () use ($register): void {
+    $register(false);
 });

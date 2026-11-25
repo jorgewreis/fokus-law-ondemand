@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\ContentSecurityPolicy;
+use App\Http\Middleware\NoIndex;
 use App\Http\Middleware\RequireMfa;
 use App\Http\Middleware\RequireModuleActionGrant;
 use App\Http\Middleware\RequirePendingMfaEnrollment;
@@ -16,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->append(NoIndex::class);
+        $middleware->append(ContentSecurityPolicy::class);
         $middleware->redirectGuestsTo(fn (Request $request) => route('login.create'));
         $middleware->alias([
             'mfa' => RequireMfa::class,

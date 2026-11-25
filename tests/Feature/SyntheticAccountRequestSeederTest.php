@@ -36,8 +36,8 @@ class SyntheticAccountRequestSeederTest extends TestCase
     {
         $this->get('/')
             ->assertOk()
-            ->assertSee('Ambiente de desenvolvimento sintético')
+            ->assertSee('A pauta do dia', false)
             ->assertSee('Não insira dados pessoais, processos reais ou informações do PJe.')
-            ->assertSee('A confirmação de e-mail é exercitada em testes simulados; o ambiente não entrega mensagens nem libera acesso funcional.');
+            ->assertSee('Números de exemplo');
     }
 }
