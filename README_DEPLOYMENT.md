@@ -88,4 +88,6 @@ Locais, no `docker.env` ignorado pelo Git: `APP_KEY`, `APP_ENV`, `APP_DEBUG`, `A
 
 No servidor, o `.env` compartilhado fica fora do release, em `shared/.env`. Produção usa `APP_URL=https://ios1vcrime.com.br/novologin`, `APP_ORIGIN_HOST=law.ios1vcrime.com.br`, `APP_PATH_PREFIX=novologin`, `DB_HOST=127.0.0.1`, `DB_DATABASE=fokuslaw` e `SESSION_DOMAIN` vazio.
 
+A lista de homes de outros usuários de site no mesmo servidor fica em `LAW_ISOLATION_FOREIGN_PATHS` (separada por vírgula), só no `shared/.env`.
+
 Não registrar aqui valores de produção.
