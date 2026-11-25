@@ -1,6 +1,6 @@
 # Isolamento negativo do Fokus Law on demand
 
-Estes passos ainda não foram executados no VPS. O gate correspondente continua aberto até o Jorge rodar o comando no servidor e registrar o resultado, sem colar senha, dump ou listagem de arquivos.
+Em 25/11 o sistema operacional, o `open_basedir` do pool e os grants do MySQL foram conferidos. Ficam para depois do primeiro deploy o comando abaixo e a checagem dos cookies. Não cole senha, dump ou listagem de arquivos.
 
 ## O que a prova precisa mostrar
 

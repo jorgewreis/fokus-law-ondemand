@@ -49,6 +49,8 @@ jobs:
         run: npm ci
       - name: Build frontend assets
         run: npm run build
+      - name: Check backup client file creation
+        run: bash tests/deploy/backup-outbox-defaults-test.sh
       - name: Run automated checks
         run: php artisan test --compact
       - name: Run isolated synthetic Compose smoke

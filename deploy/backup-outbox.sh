@@ -47,7 +47,7 @@ cleanup() { rm -rf "$work"; }
 trap cleanup EXIT
 
 defaults="$work/client.cnf"
-chmod 600 "$defaults"
+install -m 600 /dev/null "$defaults"
 cat > "$defaults" <<EOF
 [client]
 host=127.0.0.1

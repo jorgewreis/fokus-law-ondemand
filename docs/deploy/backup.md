@@ -1,6 +1,6 @@
 # Backup mensal e teste de restauração
 
-O gate 6 continua aberto. Os scripts estão no repositório; a primeira cópia e o teste de restauração ainda não foram feitos. Jorge executa os dois lados. Não grave a senha do gpg, a senha do MySQL nem a chave SSH neste repositório ou no Linear.
+Em 25/11 o lado do servidor do gate 6 foi feito: o usuário SFTP `lawbackup` fica em chroot em `/var/backups/fokus-law`, com a caixa `outbox`; um cron mensal roda à 04:15 (America/Bahia) no dia 1; o backup cifrado foi gerado e a decifragem foi conferida. Falta o Jorge puxar a cópia no PC e testar a restauração. Não grave a senha do gpg, a senha do MySQL nem a chave SSH neste repositório ou no Linear.
 
 ## No servidor, uma vez
 

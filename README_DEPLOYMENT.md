@@ -69,14 +69,14 @@ Não disparar `law-deploy.yml` enquanto o gate 8 e os testes de isolamento não 
 | --- | --- | --- |
 | 1. Cópia versionada | Atendido | Repositório `jorgewreis/fokus-law-ondemand`, raiz do app, sem worktree como fonte |
 | 2. Forma de hospedagem | Atendido | CloudPanel, PHP-FPM 8.5 nativo, pool `pm=ondemand`, `max_children=3`. O Docker fica só no PC e no CI |
-| 3. Site, pool, banco e isolamento | Parcial | Site `law.ios1vcrime.com.br`, usuário `law-ondemand`, banco e usuário `fokuslaw` criados. Os testes negativos ainda não rodaram no VPS |
+| 3. Site, pool, banco e isolamento | Parcial | Em 25/11 o sistema operacional, o `open_basedir` do pool e os grants do MySQL foram conferidos. Faltam `law:isolation-check` e a checagem dos cookies, que esperam o primeiro deploy |
 | 4. Firewall e borda | Atendido para o Law | Grupo de firewall `409339` com a porta `3306` fechada. Certificado Origin CA e SSL Full Strict. A porta `3333` continua sendo observação anterior de outro serviço, não deste app |
 | 5. Capacidade | Aberto | O espaço do KVM1 compartilhado e do PC de restauração ainda não foi medido |
-| 6. Backup SFTP | Aberto | Scripts em `deploy/backup-outbox.sh` e `deploy/pc/Pull-MonthlyBackup.ps1`. Jorge ainda não executou a cópia nem o teste de restauração. Procedimento em [`docs/deploy/backup.md`](docs/deploy/backup.md) |
+| 6. Backup SFTP | Parcial | Em 25/11 o lado do servidor ficou pronto: usuário SFTP `lawbackup` com chroot em `/var/backups/fokus-law` e caixa `outbox`; cron mensal à 04:15 (America/Bahia) no dia 1; backup cifrado gerado e decifragem conferida. Falta o Jorge puxar no PC e testar a restauração. Procedimento em [`docs/deploy/backup.md`](docs/deploy/backup.md) |
 | 7. Acesso de manutenção | Atendido | Sem WireGuard. SSH pelo terminal do VS Code do Jorge. Interface do CloudPanel no IP do VPS, porta `8443` |
 | 8. Aceite para co-hospedar | Aberto | Falta o aceite explícito do desenvolvedor. O workflow de deploy não deve ser disparado antes disso |
 
-Os testes de isolamento também continuam abertos. O runbook está em [`docs/deploy/isolamento.md`](docs/deploy/isolamento.md). O comando `php artisan law:isolation-check --require-mysql` é a prova no servidor; a suíte só cobre a decisão e o cookie.
+O isolamento de sistema, `open_basedir` e grants do MySQL foi conferido em 25/11. Continuam pendentes, até o primeiro deploy, o comando `php artisan law:isolation-check --require-mysql` e a checagem dos cookies no navegador. O runbook está em [`docs/deploy/isolamento.md`](docs/deploy/isolamento.md). A suíte cobre a decisão do comando e o contrato do cookie.
 
 ## Rollback
 
