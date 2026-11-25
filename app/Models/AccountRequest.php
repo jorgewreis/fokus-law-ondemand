@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['display_name', 'email', 'status', 'email_confirmed_at', 'submitted_at', 'expires_at', 'reviewed_by_user_id', 'linked_user_id', 'reviewed_at'])]
+#[Fillable(['display_name', 'email', 'matricula', 'status', 'email_confirmed_at', 'submitted_at', 'expires_at', 'reviewed_by_user_id', 'linked_user_id', 'reviewed_at'])]
 class AccountRequest extends Model
 {
     /** @use HasFactory<AccountRequestFactory> */

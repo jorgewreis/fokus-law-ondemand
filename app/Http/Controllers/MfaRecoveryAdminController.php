@@ -6,6 +6,7 @@ use App\Mail\MfaRecoveryNotice;
 use App\Models\MfaRecoveryRequest;
 use App\Models\User;
 use App\Services\AccountAudit;
+use App\Support\MailTransport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,11 @@ class MfaRecoveryAdminController extends Controller
     public function approve(Request $request, MfaRecoveryRequest $recoveryRequest, AccountAudit $audit): RedirectResponse
     {
         $request->validate(['confirmed_by_known_channel' => ['required', 'accepted']]);
-        abort_unless(config('mail.default') === 'smtp', 503, 'Configure o SMTP para notificar a pessoa antes de redefinir o MFA.');
+        if (! MailTransport::configured()) {
+            return back()->withErrors([
+                'mail' => 'O envio de e-mail não está configurado. Defina MAIL_MAILER como smtp ou log antes de redefinir o MFA.',
+            ]);
+        }
 
         $target = DB::transaction(function () use ($request, $recoveryRequest, $audit): User {
             $lockedRequest = MfaRecoveryRequest::query()->lockForUpdate()->findOrFail($recoveryRequest->getKey());
@@ -46,11 +51,15 @@ class MfaRecoveryAdminController extends Controller
         });
 
         try {
-            Mail::mailer('smtp')->to($target->email)->send(new MfaRecoveryNotice);
+            Mail::mailer(MailTransport::name())->to($target->email)->send(new MfaRecoveryNotice);
         } catch (\Throwable $exception) {
             $audit->record($request->user(), 'mfa.recovery_notice_failed', 'user', $target->getKey(), 'failure');
 
-            throw $exception;
+            report($exception);
+
+            return back()->withErrors([
+                'mail' => 'O fator antigo foi revogado, mas a notificação não pôde ser enviada. Verifique MAIL_MAILER.',
+            ]);
         }
 
         return back()->with('status', 'O fator antigo foi revogado. A conta só recupera acesso após cadastrar um novo TOTP. A notificação foi encaminhada pelo canal de e-mail configurado.');

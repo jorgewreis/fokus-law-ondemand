@@ -78,7 +78,10 @@ jobs:
           APP_ENV=local
           APP_KEY=${app_key}
           APP_DEBUG=false
-          APP_URL=http://127.0.0.1:8081
+          APP_URL=http://127.0.0.1:8081/novologin
+          APP_PATH_PREFIX=novologin
+          SESSION_COOKIE=fokus_law_session
+          SESSION_PATH=/novologin
           LOG_CHANNEL=stderr
           DB_CONNECTION=mysql
           DB_HOST=db
@@ -162,9 +165,14 @@ jobs:
           fi
 
           docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY app curl --fail --silent --show-error http://127.0.0.1/up >/dev/null
-          home="$(docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY app curl --fail --silent --show-error http://127.0.0.1/)"
-          grep -q 'Ambiente de desenvolvimento sintético' <<< "$home"
-          grep -q 'Não insira dados pessoais, processos reais ou informações do PJe.' <<< "$home"
+          home_headers="$(docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY app curl --fail --silent --show-error --dump-header - http://127.0.0.1/novologin)"
+          grep -q 'A pauta do dia' <<< "$home_headers"
+          grep -q 'Não insira dados pessoais, processos reais ou informações do PJe.' <<< "$home_headers"
+          grep -q 'Réu A.' <<< "$home_headers"
+          grep -q 'novologin' <<< "$home_headers"
+          grep -qi 'x-robots-tag: noindex, nofollow' <<< "$home_headers"
+          grep -qi 'set-cookie: fokus_law_session=' <<< "$home_headers"
+          grep -qi 'path=/novologin' <<< "$home_headers"
 
           confirmation_status="$(docker compose -p "$COMPOSE_PROJECT_NAME" exec --no-TTY app curl --silent --show-error --connect-timeout 5 --max-time 10 --output /dev/null --write-out '%{http_code}' 'http://127.0.0.1/account-requests/1/confirm?expires=0&signature=ci-log-probe')"
           if [[ "$confirmation_status" != "403" ]]; then

@@ -55,6 +55,13 @@ return [
     'url' => env('APP_URL', 'http://localhost'),
 
     /*
+    | Public path prefix used behind the Cloudflare Worker at /novologin.
+    | Empty in the test suite so existing URLs stay stable. Production sets
+    | APP_PATH_PREFIX=novologin, or relies on this default outside phpunit.
+    */
+    'path_prefix' => env('APP_PATH_PREFIX', 'novologin'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------

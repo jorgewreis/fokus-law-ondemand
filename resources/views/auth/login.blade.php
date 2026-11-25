@@ -10,8 +10,9 @@
     <form class="panel" method="post" action="{{ route('login.store') }}" autocomplete="on">
         @csrf
         <div class="field">
-            <label for="email">E-mail</label>
-            <input id="email" name="email" type="email" value="{{ old('email') }}" autocomplete="username" maxlength="254" required @if($errors->has('email')) aria-describedby="email-error" @endif>
+            <label for="identifier">E-mail ou matrícula</label>
+            <input id="identifier" name="identifier" type="text" value="{{ old('identifier', old('email')) }}" autocomplete="username" maxlength="254" required @if($errors->has('identifier') || $errors->has('email')) aria-describedby="email-error" @endif>
+            @error('identifier') <p class="field-error" id="email-error">{{ $message }}</p> @enderror
             @error('email') <p class="field-error" id="email-error">{{ $message }}</p> @enderror
         </div>
         <div class="field">

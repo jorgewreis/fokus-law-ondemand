@@ -7,6 +7,7 @@ use App\Mail\AccountActivationInviteEmail;
 use App\Models\AccountActivationInvite;
 use App\Models\AccountRequest;
 use App\Models\User;
+use App\Support\MailTransport;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -16,7 +17,7 @@ class AccountActivation
 {
     public function approve(AccountRequest $accountRequest, User $administrator): void
     {
-        abort_unless(config('mail.default') === 'smtp', 503, 'Configure o SMTP autorizado antes de aprovar e emitir convites.');
+        abort_unless(MailTransport::configured(), 503, 'Defina MAIL_MAILER como smtp ou log antes de aprovar e emitir convites.');
 
         $inviteData = DB::transaction(function () use ($accountRequest, $administrator): array {
             $locked = AccountRequest::query()->lockForUpdate()->findOrFail($accountRequest->getKey());
@@ -30,9 +31,14 @@ class AccountActivation
 
             abort_if(User::query()->where('email', $locked->email)->exists(), 409);
 
+            if (filled($locked->matricula) && User::query()->where('matricula', $locked->matricula)->exists()) {
+                abort(409, 'A matrícula informada já está em uso.');
+            }
+
             $user = User::query()->create([
                 'name' => $locked->display_name,
                 'email' => $locked->email,
+                'matricula' => $locked->matricula,
                 'email_verified_at' => $locked->email_confirmed_at,
                 'password' => bin2hex(random_bytes(48)),
             ]);
@@ -79,7 +85,7 @@ class AccountActivation
 
     public function reissue(User $user, User $administrator): void
     {
-        abort_unless(config('mail.default') === 'smtp', 503, 'Configure o SMTP autorizado antes de emitir convites.');
+        abort_unless(MailTransport::configured(), 503, 'Defina MAIL_MAILER como smtp ou log antes de emitir convites.');
 
         abort_unless($user->is_synthetic_admin === false && ! $user->is_active, 409);
 
@@ -116,8 +122,8 @@ class AccountActivation
     /** @param array{email: string, token: string, expires_at: Carbon} $inviteData */
     private function deliverInvite(array $inviteData): void
     {
-        $mailer = (string) config('mail.default');
-        abort_unless($mailer === 'smtp', 503);
+        $mailer = MailTransport::name();
+        abort_unless(MailTransport::configured(), 503, 'Defina MAIL_MAILER como smtp ou log antes de emitir convites.');
 
         $url = URL::temporarySignedRoute(
             'account-activation.show',

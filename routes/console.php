@@ -5,6 +5,7 @@ use App\Models\User;
 use App\Security\SyntheticDatabaseGuard;
 use App\Services\AccountAudit;
 use App\Services\AccountRequestLifecycle;
+use App\Support\MailTransport;
 use Illuminate\Console\Command;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -31,8 +32,8 @@ Artisan::command('law:recover-admin-mfa', function (AccountAudit $audit, Synthet
         return Command::FAILURE;
     }
 
-    if (! app()->environment('local') || blank(config('app.key')) || config('mail.default') !== 'smtp') {
-        $this->error('Recuperação recusada: exige APP_ENV=local, MySQL sintético dedicado e SMTP configurado para a notificação.');
+    if (! app()->environment('local') || blank(config('app.key')) || ! MailTransport::configured()) {
+        $this->error('Recuperação recusada: exige APP_ENV=local, MySQL sintético dedicado e MAIL_MAILER=smtp ou log para a notificação.');
 
         return Command::FAILURE;
     }
@@ -75,7 +76,7 @@ Artisan::command('law:recover-admin-mfa', function (AccountAudit $audit, Synthet
     });
 
     try {
-        Mail::mailer('smtp')->to($administrator->email)->send(new MfaRecoveryNotice);
+        Mail::mailer(MailTransport::name())->to($administrator->email)->send(new MfaRecoveryNotice);
     } catch (Throwable $exception) {
         $audit->record($administrator, 'administrator.mfa_recovery_notice_failed', 'user', $administrator->getKey(), 'failure');
 

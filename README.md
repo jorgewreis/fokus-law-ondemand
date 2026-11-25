@@ -1,13 +1,13 @@
 # Fokus Law — ambiente sintético local
 
-Aplicação Greenfield do Fokus Law on demand. O MVP em construção cobre Pessoas e Processos. Este ambiente usa somente fixtures fictícias; não é homologação e não autoriza PJe, dados reais, produção ou ativação no KVM1.
+Aplicação Greenfield do Fokus Law on demand, neste repositório próprio `jorgewreis/fokus-law-ondemand` (extraído de `apps/law` no monorepo `jorgewreis/fokus`). O MVP em construção cobre Pessoas e Processos. A página pública fica em `/novologin`. Este ambiente usa somente fixtures fictícias; não é homologação e não autoriza PJe, dados reais, produção ou ativação no KVM1.
 
 ## Fontes canônicas
 
 - [PRD do Fokus Law](https://app.notion.com/p/41b6af4c510981e0b980eff10759823a)
-- [ADR-0001 — arquitetura Greenfield e fronteiras de ambiente](../../docs/adr/0001-fokus-law-greenfield-stack-and-boundaries.md)
-- [Dicionário conceitual de Pessoas e Processos](../../docs/domain/dicionario-dominio.md)
-- [Ciclo de vida das fixtures sintéticas](../../docs/testing/ciclo-fixtures-sinteticas.md)
+- [ADR-0001 — arquitetura Greenfield e fronteiras de ambiente](docs/adr/0001-fokus-law-greenfield-stack-and-boundaries.md)
+- [Dicionário conceitual de Pessoas e Processos](https://github.com/jorgewreis/fokus/blob/main/docs/domain/dicionario-dominio.md) (permanece no repositório de portfólio `jorgewreis/fokus`)
+- [Ciclo de vida das fixtures sintéticas](https://github.com/jorgewreis/fokus/blob/main/docs/testing/ciclo-fixtures-sinteticas.md) (permanece no repositório de portfólio `jorgewreis/fokus`)
 - [REI-194 — percurso mínimo do MVP](https://linear.app/reis-developer/issue/REI-194)
 - [REI-198 — aplicação e ambiente sintético](https://linear.app/reis-developer/issue/REI-198)
 - [REI-197 — contas, MFA e recuperação](https://linear.app/reis-developer/issue/REI-197)
@@ -21,7 +21,7 @@ Aplicação Greenfield do Fokus Law on demand. O MVP em construção cobre Pesso
 
 ## Iniciar o Compose sintético
 
-Execute dentro de apps/law:
+Execute na raiz deste repositório (`jorgewreis/fokus-law-ondemand`):
 
     if (Test-Path docker.env) { throw 'docker.env already exists; preserve it and edit it in place.' }
     Copy-Item docker.env.example docker.env
@@ -50,7 +50,7 @@ O seeder SyntheticAccountRequestSeeder só aceita um destes destinos:
 
 Qualquer outra combinação lança LogicException antes de consultar o banco. O seeder usa firstOrCreate para manter uma única solicitação fictícia em pending_email_confirmation, com endereço .test, sem usuário, senha, sessão ou concessão. O seed não representa uma pessoa real nem dados mascarados. Não altere os guards para fazer fixtures alcançar outros bancos.
 
-O transporte `array` do fluxo público de confirmação é somente para simulação: mensagens ficam em memória e não são entregues. Convites de ativação, redefinição de senha e recuperação de MFA exigem SMTP configurado e validado antes da ação; nenhum segredo de SMTP deve ser registrado em Git, Linear ou Notion. Links assinados não devem ser enviados pelo driver `log`.
+O transporte de e-mail sai de `MAIL_MAILER` e das variáveis `MAIL_*`. O SMTP ainda não foi escolhido. `array` guarda a mensagem em memória e serve para simulação e testes. `log` grava a mensagem no log da aplicação, inclusive links assinados, e não entrega caixa de entrada; use-o só no ambiente sintético, enquanto o remetente não estiver definido. `smtp` é o transporte quando houver relay. Se o mailer não for um desses, ou se o envio falhar, o fluxo público volta com uma mensagem e não derruba a página. Nenhum segredo de SMTP deve ser registrado em Git, Linear ou Notion.
 
 ## Contas, MFA e concessões
 
@@ -80,7 +80,7 @@ A primeira suíte usa o ambiente testing do PHPUnit e SQLite :memory:. O teste d
 
 ## Parar e remover fixtures
 
-Para parar o app e o banco mantendo o volume, dentro de apps/law:
+Para parar o app e o banco mantendo o volume, na raiz deste repositório:
 
     docker compose -p fokus-law-synthetic down
 

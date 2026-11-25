@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\AccountAudit;
+use App\Support\MailTransport;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,9 +23,22 @@ class AccountPasswordController extends Controller
     public function sendLink(Request $request): RedirectResponse
     {
         $validated = $request->validate(['email' => ['required', 'email:rfc', 'max:254']]);
-        abort_unless(config('mail.default') === 'smtp', 503, 'Configure o SMTP autorizado para entregar links de recuperação.');
 
-        Password::sendResetLink(['email' => mb_strtolower(trim($validated['email']))]);
+        if (! MailTransport::configured()) {
+            return back()->withErrors([
+                'email' => 'O envio de e-mail não está configurado. Defina MAIL_MAILER como smtp ou log.',
+            ]);
+        }
+
+        try {
+            Password::sendResetLink(['email' => mb_strtolower(trim($validated['email']))]);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return back()->withErrors([
+                'email' => 'Não foi possível enviar o link agora. Tente de novo quando o e-mail estiver disponível.',
+            ]);
+        }
 
         return back()->with('status', 'Se a conta estiver ativa, um link de redefinição de uso único será enviado. O link não altera nem dispensa o TOTP.');
     }
@@ -66,7 +80,7 @@ class AccountPasswordController extends Controller
         );
 
         return $status === Password::PASSWORD_RESET
-            ? redirect()->route('login.create')->with('status', 'Senha redefinida. O TOTP continua obrigatório para entrar.')
+            ? redirect()->route('login.create')->with('status', 'Senha redefinida. Se a conta tiver autenticador, ele continua valendo.')
             : back()->withErrors(['email' => 'Não foi possível redefinir a senha com esse link.']);
     }
 }

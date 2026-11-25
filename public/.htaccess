@@ -5,6 +5,11 @@
 
     RewriteEngine On
 
+    # Static files published under /novologin stay in public/. PHP routes keep the prefix.
+    RewriteCond %{REQUEST_URI} ^/novologin/(.+)$
+    RewriteCond %{DOCUMENT_ROOT}/%1 -f
+    RewriteRule ^novologin/(.+)$ $1 [L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
@@ -22,4 +27,8 @@
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header set X-Robots-Tag "noindex, nofollow"
 </IfModule>

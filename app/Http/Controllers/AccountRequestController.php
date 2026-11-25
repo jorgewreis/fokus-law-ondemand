@@ -7,6 +7,7 @@ use App\Mail\ConfirmAccountRequestEmail;
 use App\Models\AccountRequest;
 use App\Services\AccountAudit;
 use App\Services\AccountRequestLifecycle;
+use App\Support\MailTransport;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,14 +30,26 @@ class AccountRequestController extends Controller
         $validated = $request->validate([
             'display_name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'string', 'max:254', 'email:rfc'],
+            'matricula' => ['nullable', 'string', 'max:32', 'regex:/^[A-Za-z0-9][A-Za-z0-9.\\-]{0,31}$/'],
+        ], [
+            'display_name.required' => 'Informe o nome completo.',
+            'email.required' => 'Informe o e-mail institucional.',
+            'email.email' => 'Informe um e-mail válido.',
+            'matricula.regex' => 'A matrícula deve ter apenas letras, números, ponto ou hífen.',
+            'matricula.max' => 'A matrícula deve ter no máximo 32 caracteres.',
         ]);
 
         $email = Str::lower(trim($validated['email']));
+        $matricula = trim((string) ($validated['matricula'] ?? ''));
+        $matricula = $matricula === '' ? null : $matricula;
 
-        $mailer = (string) config('mail.default');
-        if (! in_array($mailer, ['array', 'smtp'], true)) {
-            abort(503, 'Este fluxo só permite transporte array ou SMTP configurado; envio por logs está desativado.');
+        if (! MailTransport::configured()) {
+            return $this->requestRedirect($request)->withInput()->withErrors([
+                'email' => 'O envio de e-mail não está configurado. Defina MAIL_MAILER como smtp ou log. A solicitação não foi registrada.',
+            ]);
         }
+
+        $mailer = MailTransport::name();
 
         $accountRequestLifecycle->expirePending($email);
 
@@ -49,6 +62,7 @@ class AccountRequestController extends Controller
                 $accountRequest = DB::transaction(fn (): AccountRequest => AccountRequest::query()->create([
                     'display_name' => trim($validated['display_name']),
                     'email' => $email,
+                    'matricula' => $matricula,
                     'status' => AccountRequestStatus::PendingEmailConfirmation,
                     'submitted_at' => now(),
                     'expires_at' => $expiresAt,
@@ -69,10 +83,18 @@ class AccountRequestController extends Controller
                 ['accountRequest' => $accountRequest->getKey()],
             );
 
-            Mail::mailer($mailer)->to($email)->send(new ConfirmAccountRequestEmail($confirmationUrl));
+            try {
+                Mail::mailer($mailer)->to($email)->send(new ConfirmAccountRequestEmail($confirmationUrl));
+            } catch (\Throwable $exception) {
+                report($exception);
+
+                return $this->requestRedirect($request)->withErrors([
+                    'email' => 'A solicitação foi registrada, mas a confirmação não pôde ser enviada. Tente de novo quando o e-mail estiver disponível.',
+                ]);
+            }
         }
 
-        return redirect()->route('account-requests.create')->with('status', 'Solicitação registrada. Neste ambiente sintético, mensagens não são entregues; a confirmação é validada por testes simulados.');
+        return $this->requestRedirect($request)->with('status', 'Solicitação registrada. Neste ambiente sintético, mensagens não são entregues; a confirmação é validada por testes simulados.');
     }
 
     public function showConfirmation(Request $request, AccountRequest $accountRequest, AccountRequestLifecycle $accountRequestLifecycle): Response
@@ -114,6 +136,15 @@ class AccountRequestController extends Controller
         });
 
         return redirect()->route('account-requests.create')->with('status', 'E-mail confirmado. Sua solicitação aguarda análise; nenhum acesso foi liberado.');
+    }
+
+    private function requestRedirect(Request $request): RedirectResponse
+    {
+        $target = $request->input('return') === 'landing'
+            ? route('home')
+            : route('account-requests.create');
+
+        return redirect($target);
     }
 
     private function assertValidConfirmationSignature(Request $request, AccountRequest $accountRequest): void
